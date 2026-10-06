@@ -118,6 +118,21 @@ export class ApplicationEntity {
   @Column({ type: 'text', name: 'rejection_reason', nullable: true })
   rejectionReason!: string | null;
 
+  @Column({ type: 'varchar', length: 20, name: 'selection_status', default: 'PENDING' })
+  selectionStatus!: string;
+
+  @Column({ type: 'uuid', name: 'selected_programme_offering_id', nullable: true })
+  selectedProgrammeOfferingId!: string | null;
+
+  @Column({ type: 'timestamptz', name: 'selection_at', nullable: true })
+  selectionAt!: Date | null;
+
+  @Column({ type: 'uuid', name: 'selection_by', nullable: true })
+  selectionBy!: string | null;
+
+  @Column({ type: 'text', name: 'selection_reason', nullable: true })
+  selectionReason!: string | null;
+
   @Column({ type: 'varchar', length: 60, name: 'rejection_reason_code', nullable: true })
   rejectionReasonCode!: string | null;
 

@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import type { AuthUser } from '../../common/decorators/current-user.decorator.js';
 import {
+  AcademicDegreeType,
   AcademicDocumentType,
   AcademicDocumentVerificationStatus,
   ApplicationAddressType,
@@ -12,6 +13,7 @@ import {
 import { ApplicationStatus } from '../../common/enums/application-status.enum.js';
 import { CriteriaOperator } from '../../common/enums/criteria-operator.enum.js';
 import { DeclarationStatus } from '../../common/enums/declaration-status.enum.js';
+import { DegreeLevel } from '../../common/enums/master-data.enum.js';
 import { OfferingStatus } from '../../common/enums/offering-status.enum.js';
 import { BusinessException } from '../../common/exceptions/business.exception.js';
 import { AdmissionCriterionEntity } from '../../database/entities/admission-criterion.entity.js';
@@ -25,11 +27,16 @@ import { ApplicationProgrammeSelectionEntity } from '../../database/entities/app
 import { ApplicationEntity } from '../../database/entities/application.entity.js';
 import { GeneralCriterionEntity } from '../../database/entities/general-criterion.entity.js';
 import { OfferingDeclarationEntity } from '../../database/entities/offering-declaration.entity.js';
+import { ProgrammeEntity } from '../../database/entities/programme.entity.js';
 import { ProgrammeOfferingEntity } from '../../database/entities/programme-offering.entity.js';
 import {
   OBJECT_STORAGE,
   type ObjectStorage,
 } from '../../integrations/storage/object-storage.interface.js';
+import { AcademicLevelRequirementsService } from '../academic-level-requirements/academic-level-requirements.service.js';
+import type {
+  ApplicantRequiredAcademicLevelsResponseDto,
+} from '../academic-level-requirements/dto/academic-level-requirement.dto.js';
 import type {
   AcademicDocumentResponseDto,
   AcademicRecordResponseDto,
@@ -115,6 +122,8 @@ export class ApplicantApplicationsService {
     private readonly declarationsRepo: Repository<ApplicationDeclarationEntity>,
     @InjectRepository(ProgrammeOfferingEntity)
     private readonly offeringsRepo: Repository<ProgrammeOfferingEntity>,
+    @InjectRepository(ProgrammeEntity)
+    private readonly programmesRepo: Repository<ProgrammeEntity>,
     @InjectRepository(OfferingDeclarationEntity)
     private readonly offeringDeclarationsRepo: Repository<OfferingDeclarationEntity>,
     @InjectRepository(AdmissionCriterionEntity)
@@ -125,6 +134,7 @@ export class ApplicantApplicationsService {
     private readonly objectStorage: ObjectStorage,
     private readonly dataSource: DataSource,
     private readonly config: ConfigService,
+    private readonly academicLevelRequirements: AcademicLevelRequirementsService,
   ) {}
 
   private maxProgrammePreferences(): number {
@@ -162,6 +172,18 @@ export class ApplicantApplicationsService {
     dto: CreateAcademicDto,
   ): Promise<AcademicStepResponseDto> {
     const app = await this.requireOwnedEditable(user, applicantId);
+    this.assertUniqueDegreeTypesInPayload(dto.records.map((r) => r.degreeType));
+
+    const existingCount = await this.academicInfoRepo.count({
+      where: { applicantId, tenantId: app.tenantId },
+    });
+    if (existingCount > 0) {
+      throw new BusinessException(
+        'Academic records already exist; use PUT to update',
+        HttpStatus.CONFLICT,
+        'ACADEMIC_ALREADY_EXISTS',
+      );
+    }
 
     await this.dataSource.transaction(async (manager) => {
       const infoRepo = manager.getRepository(
@@ -190,6 +212,7 @@ export class ApplicantApplicationsService {
     });
 
     if (app.programmeStepSaved) {
+      await this.assertRequiredAcademicLevels(app, applicantId);
       await this.assertEligibilityMet(
         { ...app, academicStepSaved: true },
         applicantId,
@@ -205,6 +228,7 @@ export class ApplicantApplicationsService {
     dto: UpdateAcademicDto,
   ): Promise<AcademicStepResponseDto> {
     const app = await this.requireOwnedEditable(user, applicantId);
+    this.assertUniqueDegreeTypesInPayload(dto.records.map((r) => r.degreeType));
 
     const ids = dto.records.map((r) => r.id);
     if (new Set(ids).size !== ids.length) {
@@ -241,6 +265,12 @@ export class ApplicantApplicationsService {
         await infoRepo.save(row);
       }
 
+      // Ensure no duplicate degree_type across all rows for this applicant.
+      const allRows = await infoRepo.find({
+        where: { applicantId, tenantId: app.tenantId },
+      });
+      this.assertUniqueDegreeTypesInPayload(allRows.map((r) => r.degreeType));
+
       await appsRepo.update(applicantId, {
         academicStepSaved: true,
         applicationStatus: this.inProgressStatus(app),
@@ -252,6 +282,7 @@ export class ApplicantApplicationsService {
     });
 
     if (app.programmeStepSaved) {
+      await this.assertRequiredAcademicLevels(app, applicantId);
       await this.assertEligibilityMet(
         { ...app, academicStepSaved: true },
         applicantId,
@@ -859,6 +890,7 @@ export class ApplicantApplicationsService {
       );
     }
 
+    await this.assertRequiredAcademicLevels(app, applicantId);
     await this.assertEligibilityMet(app, applicantId);
 
     if (
@@ -933,6 +965,7 @@ export class ApplicantApplicationsService {
     }
 
     if (app.academicStepSaved) {
+      await this.assertRequiredAcademicLevels(app, applicantId, offeringIds);
       await this.assertEligibilityMet(app, applicantId, offeringIds);
     }
 
@@ -1295,6 +1328,131 @@ export class ApplicantApplicationsService {
     }
   }
 
+  async getRequiredAcademicLevels(
+    user: AuthUser,
+    applicantId: string,
+  ): Promise<ApplicantRequiredAcademicLevelsResponseDto> {
+    const app = await this.requireOwnedEditable(user, applicantId, false);
+    const resolved = await this.resolveRequiredAcademicLevels(app, applicantId);
+    return {
+      applicantId,
+      byDegreeLevel: resolved.byDegreeLevel,
+      requiredAcademicCodes: resolved.requiredAcademicCodes,
+      missingAcademicCodes: resolved.missingAcademicCodes,
+      complete: resolved.missingAcademicCodes.length === 0,
+    };
+  }
+
+  private assertUniqueDegreeTypesInPayload(degreeTypes: string[]): void {
+    const normalized = degreeTypes.map((d) => d.trim().toUpperCase());
+    if (new Set(normalized).size !== normalized.length) {
+      throw new BusinessException(
+        'Duplicate academic degreeType in request; only one record per code is allowed',
+        HttpStatus.BAD_REQUEST,
+        'DUPLICATE_ACADEMIC_DEGREE_TYPE',
+      );
+    }
+  }
+
+  private async assertRequiredAcademicLevels(
+    app: ApplicationEntity,
+    applicantId: string,
+    offeringIdsOverride?: string[],
+  ): Promise<void> {
+    const resolved = await this.resolveRequiredAcademicLevels(
+      app,
+      applicantId,
+      offeringIdsOverride,
+    );
+    if (resolved.missingAcademicCodes.length === 0) return;
+
+    throw new BusinessException(
+      `Missing required academic records: ${resolved.missingAcademicCodes.join(', ')}`,
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      'ACADEMIC_LEVELS_INCOMPLETE',
+      {
+        requiredAcademicCodes: resolved.requiredAcademicCodes,
+        missingAcademicCodes: resolved.missingAcademicCodes,
+        byDegreeLevel: resolved.byDegreeLevel,
+      },
+    );
+  }
+
+  private async resolveRequiredAcademicLevels(
+    app: ApplicationEntity,
+    applicantId: string,
+    offeringIdsOverride?: string[],
+  ): Promise<{
+    byDegreeLevel: Array<{
+      degreeLevel: DegreeLevel;
+      requiredAcademicCodes: AcademicDegreeType[];
+      missingAcademicCodes: AcademicDegreeType[];
+    }>;
+    requiredAcademicCodes: AcademicDegreeType[];
+    missingAcademicCodes: AcademicDegreeType[];
+  }> {
+    let offeringIds = offeringIdsOverride;
+    if (!offeringIds) {
+      const options = await this.programmeOptionsRepo.find({
+        where: { applicantId, tenantId: app.tenantId },
+      });
+      offeringIds = options.map((o) => o.programmeOfferingId);
+    }
+
+    if (!offeringIds.length) {
+      return {
+        byDegreeLevel: [],
+        requiredAcademicCodes: [],
+        missingAcademicCodes: [],
+      };
+    }
+
+    const offerings = await this.offeringsRepo.find({
+      where: { id: In(offeringIds), tenantId: app.tenantId },
+    });
+    const programmeIds = [...new Set(offerings.map((o) => o.programmeId))];
+    const programmes = programmeIds.length
+      ? await this.programmesRepo.find({
+          where: { id: In(programmeIds), tenantId: app.tenantId },
+        })
+      : [];
+    const degreeLevels = [
+      ...new Set(programmes.map((p) => p.degreeLevel).filter(Boolean)),
+    ];
+
+    const byLevelMap =
+      await this.academicLevelRequirements.listMandatoryCodesForDegreeLevels(
+        app.tenantId,
+        degreeLevels,
+      );
+
+    const academics = await this.academicInfoRepo.find({
+      where: { applicantId, tenantId: app.tenantId },
+    });
+    const present = new Set(
+      academics.map((a) => a.degreeType.trim().toUpperCase()),
+    );
+
+    const requiredSet = new Set<AcademicDegreeType>();
+    const byDegreeLevel = degreeLevels.map((level) => {
+      const required = byLevelMap.get(level) ?? [];
+      for (const code of required) requiredSet.add(code);
+      const missing = required.filter((code) => !present.has(code));
+      return {
+        degreeLevel: level as DegreeLevel,
+        requiredAcademicCodes: required,
+        missingAcademicCodes: missing,
+      };
+    });
+
+    const requiredAcademicCodes = [...requiredSet];
+    const missingAcademicCodes = requiredAcademicCodes.filter(
+      (code) => !present.has(code),
+    );
+
+    return { byDegreeLevel, requiredAcademicCodes, missingAcademicCodes };
+  }
+
   /**
    * Enforces machine-evaluable mandatory offering criteria (criteria_value set)
    * against applicant academic percentages. Display-only criteria (no value) are skipped.
@@ -1622,7 +1780,7 @@ export class ApplicantApplicationsService {
   }
 
   private mapAcademicFields(record: {
-    degreeType: string;
+    degreeType: AcademicDegreeType | string;
     rollNumber: string;
     qualificationName: string;
     boardOrInstitution: string;
@@ -1634,7 +1792,7 @@ export class ApplicantApplicationsService {
     percentage: number;
   }) {
     return {
-      degreeType: record.degreeType,
+      degreeType: String(record.degreeType).trim().toUpperCase(),
       rollNumber: record.rollNumber,
       qualificationName: record.qualificationName,
       boardOrInstitution: record.boardOrInstitution,
@@ -1652,7 +1810,7 @@ export class ApplicantApplicationsService {
   ): Promise<AcademicRecordResponseDto> {
     return {
       id: row.id,
-      degreeType: row.degreeType,
+      degreeType: row.degreeType as AcademicDegreeType,
       rollNumber: row.rollNumber,
       qualificationName: row.qualificationName,
       boardOrInstitution: row.boardOrInstitution,

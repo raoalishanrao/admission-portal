@@ -85,6 +85,23 @@ export function ApiWrappedOkArrayResponse<TModel extends Type<unknown>>(
   });
 }
 
+export function ApiWrappedCreatedArrayResponse<TModel extends Type<unknown>>(
+  model: TModel,
+  description = 'Resources created',
+) {
+  return ApiCreatedResponse({
+    description,
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        data: { type: 'array', items: { $ref: getSchemaPath(model) } },
+      },
+      required: ['success', 'data'],
+    },
+  });
+}
+
 /** Wrapped response whose data is a plain array rather than a paginated list. */
 export function ApiWrappedRawArrayResponse<TModel extends Type<unknown>>(
   model: TModel,

@@ -11,6 +11,7 @@ export class ApplicantDocumentEntity {
   @Column({ type: 'uuid', name: 'programme_offering_id' }) programmeOfferingId!: string;
   @Column({ type: 'uuid', name: 'offering_required_document_id' }) offeringRequiredDocumentId!: string;
   @Column({ type: 'uuid', name: 'document_type_id' }) documentTypeId!: string;
+  @Index() @Column({ type: 'uuid', name: 'document_file_id', nullable: true }) documentFileId!: string | null;
   @Column({ type: 'varchar', length: 10, name: 'source_module', default: AdmissionDocumentSource.F004 }) sourceModule!: AdmissionDocumentSource;
   @Column({ type: 'uuid', name: 'source_document_id', nullable: true }) sourceDocumentId!: string | null;
   @Column({ type: 'varchar', length: 1000, name: 'file_reference', nullable: true }) fileReference!: string | null;

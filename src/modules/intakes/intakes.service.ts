@@ -50,6 +50,10 @@ export class IntakesService {
       status: IntakeStatus.DRAFT,
       applicationOpenAt: dto.applicationOpenAt,
       applicationCloseAt: dto.applicationCloseAt,
+      offerPaymentPeriodDays: dto.offerPaymentPeriodDays ?? 5,
+      meritGenerationMode: dto.meritGenerationMode ?? 'MANUAL',
+      feeConfirmMarginPercent: String(dto.feeConfirmMarginPercent ?? 0),
+      offerFeeGraceHours: dto.offerFeeGraceHours ?? 0,
       createdBy: ctx.userId,
       updatedBy: ctx.userId,
     });
@@ -169,9 +173,16 @@ export class IntakesService {
     intakeId: string,
     dto: UpdateIntakeDto,
   ): Promise<IntakeResponseDto> {
-    if (!dto.intakeName && !dto.intakeCode) {
+    if (
+      !dto.intakeName &&
+      !dto.intakeCode &&
+      dto.offerPaymentPeriodDays === undefined &&
+      dto.meritGenerationMode === undefined &&
+      dto.feeConfirmMarginPercent === undefined &&
+      dto.offerFeeGraceHours === undefined
+    ) {
       throw new BusinessException(
-        'At least one of intakeName or intakeCode is required',
+        'At least one intake field is required',
         HttpStatus.BAD_REQUEST,
         'VALIDATION_ERROR',
       );
@@ -187,6 +198,12 @@ export class IntakesService {
     if (dto.intakeName) {
       intake.intakeName = dto.intakeName;
     }
+    if (dto.offerPaymentPeriodDays !== undefined) intake.offerPaymentPeriodDays = dto.offerPaymentPeriodDays;
+    if (dto.meritGenerationMode !== undefined) intake.meritGenerationMode = dto.meritGenerationMode;
+    if (dto.feeConfirmMarginPercent !== undefined) {
+      intake.feeConfirmMarginPercent = String(dto.feeConfirmMarginPercent);
+    }
+    if (dto.offerFeeGraceHours !== undefined) intake.offerFeeGraceHours = dto.offerFeeGraceHours;
 
     intake.updatedBy = ctx.userId;
     const saved = await this.intakesRepo.save(intake);
@@ -301,6 +318,10 @@ export class IntakesService {
       status: entity.status as IntakeStatus,
       applicationOpenAt: entity.applicationOpenAt.toISOString(),
       applicationCloseAt: entity.applicationCloseAt.toISOString(),
+      offerPaymentPeriodDays: entity.offerPaymentPeriodDays,
+      meritGenerationMode: entity.meritGenerationMode ?? 'MANUAL',
+      feeConfirmMarginPercent: Number(entity.feeConfirmMarginPercent ?? 0),
+      offerFeeGraceHours: entity.offerFeeGraceHours ?? 0,
       publishedAt: entity.publishedAt
         ? entity.publishedAt.toISOString()
         : null,

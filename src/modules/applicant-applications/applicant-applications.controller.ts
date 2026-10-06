@@ -37,6 +37,9 @@ import { ParseUuidPipe } from '../../common/pipes/parse-uuid.pipe.js';
 import { ApplicantApplicationsService } from './applicant-applications.service.js';
 import type { UploadedFileInput } from './applicant-applications.service.js';
 import {
+  ApplicantRequiredAcademicLevelsResponseDto,
+} from '../academic-level-requirements/dto/academic-level-requirement.dto.js';
+import {
   AcademicDocumentResponseDto,
   AcademicStepResponseDto,
   ApplicationAddressResponseDto,
@@ -87,6 +90,7 @@ import {
   ApplicationContactResponseDto,
   DeclarationStepResponseDto,
   SubmitApplicationResponseDto,
+  ApplicantRequiredAcademicLevelsResponseDto,
   ApiErrorResponseDto,
 )
 @ApiStandardErrorResponses()
@@ -101,7 +105,8 @@ export class ApplicantApplicationsController {
   @ApiOperation({
     summary: 'Get academic information and documents',
     description:
-      'Academic documents are linked via academicInformationId → application_academic_documents.',
+      'Academic documents are linked via academicInformationId → application_academic_documents. ' +
+      'degreeType must be a controlled code: MATRIC, FSC, BACHELOR, MASTER, DOCTORATE.',
   })
   @ApiWrappedOkResponse(AcademicStepResponseDto, 'Academic step')
   getAcademic(
@@ -111,9 +116,32 @@ export class ApplicantApplicationsController {
     return this.applicationsService.getAcademic(user, applicantId);
   }
 
+  @Get('academic/required-levels')
+  @ApiOperation({
+    summary: 'Get required academic levels for selected programmes',
+    description:
+      'Resolves programme degree_level (Bachelor/Master/Doctorate) to configured required ' +
+      'academic codes (e.g. Bachelor → MATRIC + FSC) and reports any missing rows.',
+  })
+  @ApiWrappedOkResponse(
+    ApplicantRequiredAcademicLevelsResponseDto,
+    'Required academic levels',
+  )
+  getRequiredAcademicLevels(
+    @CurrentUser() user: AuthUser,
+    @Param('applicantId', new ParseUuidPipe('applicantId')) applicantId: string,
+  ): Promise<ApplicantRequiredAcademicLevelsResponseDto> {
+    return this.applicationsService.getRequiredAcademicLevels(user, applicantId);
+  }
+
   @Post('academic')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create academic information' })
+  @ApiOperation({
+    summary: 'Create academic information',
+    description:
+      'One record per degreeType code (MATRIC, FSC, …). If programmes are already selected, ' +
+      'mandatory academic levels for those programme degree levels must be present.',
+  })
   @ApiWrappedCreatedResponse(AcademicStepResponseDto, 'Academic records created')
   createAcademic(
     @CurrentUser() user: AuthUser,
@@ -124,7 +152,11 @@ export class ApplicantApplicationsController {
   }
 
   @Put('academic')
-  @ApiOperation({ summary: 'Update academic information' })
+  @ApiOperation({
+    summary: 'Update academic information',
+    description:
+      'Updates existing academic rows by id. degreeType codes must remain unique per application.',
+  })
   @ApiWrappedOkResponse(AcademicStepResponseDto, 'Academic records updated')
   updateAcademic(
     @CurrentUser() user: AuthUser,
@@ -237,7 +269,8 @@ export class ApplicantApplicationsController {
   @ApiOperation({
     summary: 'Create programme selection and preferences',
     description:
-      'Preference 1 required. Max preferences from APPLICATION_MAX_PROGRAMME_PREFERENCES (default 2, min 2).',
+      'Preference 1 required. Max preferences from APPLICATION_MAX_PROGRAMME_PREFERENCES (default 2, min 2). ' +
+      'If academic step is already saved, selected programmes must have their required academic degree_type codes present.',
   })
   @ApiWrappedCreatedResponse(ProgrammeStepResponseDto, 'Programme created')
   createProgramme(
@@ -249,7 +282,11 @@ export class ApplicantApplicationsController {
   }
 
   @Put('programme')
-  @ApiOperation({ summary: 'Update programme selection and preferences' })
+  @ApiOperation({
+    summary: 'Update programme selection and preferences',
+    description:
+      'If academic step is already saved, selected programmes must have their required academic degree_type codes present.',
+  })
   @ApiWrappedOkResponse(ProgrammeStepResponseDto, 'Programme updated')
   updateProgramme(
     @CurrentUser() user: AuthUser,
@@ -492,7 +529,7 @@ export class ApplicantApplicationsController {
   @ApiOperation({
     summary: 'Accept offering declarations',
     description:
-      'Accept all IDs from GET .../declaration/texts plus disciplinary disclosure. No test centre.',
+      'Accept all applicable IDs from GET .../declaration/texts and save the disciplinary disclosure. Test-centre assignment is determined from the applicant’s intake and first programme preference when an admit card is generated.',
   })
   @ApiWrappedCreatedResponse(DeclarationStepResponseDto, 'Declaration created')
   createDeclaration(

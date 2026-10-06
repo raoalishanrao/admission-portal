@@ -164,6 +164,7 @@ export class ApplicantRegistrationsService {
       overallCompletion: saved.overallCompletion,
       iamOnboardStatus: onboard.status,
       verificationEmailSent,
+      invitationToken: onboard.invitationToken,
     };
   }
 

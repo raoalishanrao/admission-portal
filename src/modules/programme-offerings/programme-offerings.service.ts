@@ -55,6 +55,7 @@ export class ProgrammeOfferingsService {
       programmeId: dto.programmeId,
       offeringStatus: OfferingStatus.CONFIGURED,
       displayOrder: dto.displayOrder ?? null,
+      seatCapacity: dto.seatCapacity ?? null,
       publishedDescription: dto.publishedDescription,
       createdBy: ctx.userId,
       updatedBy: ctx.userId,
@@ -116,6 +117,9 @@ export class ProgrammeOfferingsService {
     }
     if (dto.displayOrder !== undefined) {
       offering.displayOrder = dto.displayOrder;
+    }
+    if (dto.seatCapacity !== undefined) {
+      offering.seatCapacity = dto.seatCapacity;
     }
     offering.updatedBy = ctx.userId;
 
@@ -228,6 +232,7 @@ export class ProgrammeOfferingsService {
       programmeId: String(entity.programmeId),
       offeringStatus: entity.offeringStatus as OfferingStatus,
       displayOrder: entity.displayOrder,
+      seatCapacity: entity.seatCapacity,
       publishedDescription: entity.publishedDescription,
       publishedAt: entity.publishedAt ? entity.publishedAt.toISOString() : null,
       createdAt: entity.createdAt.toISOString(),

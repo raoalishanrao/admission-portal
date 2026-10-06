@@ -7,3 +7,4 @@ export * from './supporting-information.enum.js';
 export * from './master-data.enum.js';
 export * from './application-status.enum.js';
 export * from './application-completion.enum.js';
+export * from './offer-fee.enum.js';

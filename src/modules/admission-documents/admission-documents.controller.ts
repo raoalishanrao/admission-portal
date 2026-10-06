@@ -1,12 +1,12 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiExtraModels, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { ApiStandardErrorResponses, ApiTenantHeaders, ApiWrappedCreatedResponse, ApiWrappedOkArrayResponse, ApiWrappedOkResponse } from '../../common/decorators/api-docs.decorator.js';
+import { ApiStandardErrorResponses, ApiTenantHeaders, ApiWrappedCreatedArrayResponse, ApiWrappedCreatedResponse, ApiWrappedOkArrayResponse, ApiWrappedOkResponse, ApiWrappedRawArrayResponse } from '../../common/decorators/api-docs.decorator.js';
 import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator.js';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 import { ParseUuidPipe } from '../../common/pipes/parse-uuid.pipe.js';
 import { ReqContext, type RequestContext } from '../../common/decorators/request-context.decorator.js';
-import { AdmissionDocumentDto, ApplicantRequirementResponseDto, CreateDocumentTypeDto, CreateOfferingRequirementDto, CreateOfferingRequirementsDto, DocumentAuditResponseDto, DocumentCompletenessDto, DocumentTypeResponseDto, LinkAcademicDocumentDto, OfferingRequirementBatchResponseDto, OfferingRequirementResponseDto, RequestResubmissionDto, UpdateOfferingRequirementDto } from './dto/admission-document.dto.js';
+import { AdmissionDocumentDto, ApplicantRequirementResponseDto, ApplicantRequirementStatusDto, CreateDocumentTypeDto, CreateOfferingRequirementDto, CreateOfferingRequirementsDto, DocumentAuditResponseDto, DocumentCompletenessDto, DocumentTypeResponseDto, LinkedDocumentRequirementDto, LinkAcademicDocumentDto, OfferingRequirementBatchResponseDto, OfferingRequirementResponseDto, RequestResubmissionDto, UpdateOfferingRequirementDto } from './dto/admission-document.dto.js';
 import { AdmissionDocumentsService, type AdmissionUpload } from './admission-documents.service.js';
 
 class DocumentTypeUpdateDto extends CreateDocumentTypeDto {}
@@ -14,7 +14,7 @@ class DocumentTypeUpdateDto extends CreateDocumentTypeDto {}
 @ApiTags('Applicant Documents')
 @ApiBearerAuth('bearer')
 @ApiStandardErrorResponses()
-@ApiExtraModels(ApiErrorResponseDto, AdmissionDocumentDto, ApplicantRequirementResponseDto, DocumentCompletenessDto, LinkAcademicDocumentDto)
+@ApiExtraModels(ApiErrorResponseDto, AdmissionDocumentDto, ApplicantRequirementResponseDto, ApplicantRequirementStatusDto, LinkedDocumentRequirementDto, DocumentCompletenessDto, LinkAcademicDocumentDto)
 @Controller('applicant/applications/:applicantId/documents')
 export class ApplicantDocumentsController {
   constructor(private readonly service: AdmissionDocumentsService) {}
@@ -42,16 +42,17 @@ export class ApplicantDocumentsController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: Number(process.env.ADMISSION_DOCUMENT_MAX_BYTES || 10 * 1024 * 1024) } }))
   @ApiParam({ name: 'applicantId', format: 'uuid' })
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: { type: 'object', required: ['file','offeringRequiredDocumentId'], properties: { file: { type: 'string', format: 'binary' }, offeringRequiredDocumentId: { type: 'string', format: 'uuid' } } } })
-  @ApiOperation({ summary: 'Upload a document for a configured offering requirement', description: 'Accepted formats: JPG, JPEG, PNG, GIF, BMP, and PDF. Application must be submitted.' })
-  @ApiWrappedCreatedResponse(AdmissionDocumentDto)
-  upload(@CurrentUser() user: AuthUser, @Param('applicantId', new ParseUuidPipe('applicantId')) id: string, @Body('offeringRequiredDocumentId', new ParseUuidPipe('offeringRequiredDocumentId')) requirementId: string, @UploadedFile() file?: AdmissionUpload) { return this.service.upload(user, id, requirementId, file); }
+  @ApiBody({ schema: { type: 'object', required: ['file','offeringRequiredDocumentIds'], properties: { file: { type: 'string', format: 'binary' }, offeringRequiredDocumentIds: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', format: 'uuid' }, description: 'Equivalent selected-offering requirements satisfied by this file' }, offeringRequiredDocumentId: { type: 'string', format: 'uuid', deprecated: true, description: 'Legacy single-requirement field' } } } })
+  @ApiOperation({ summary: 'Upload one document for one or more equivalent offering requirements', description: 'The file is stored once and shared by the listed requirements. Accepted formats: JPG, JPEG, PNG, GIF, BMP, and PDF. Application must be submitted.' })
+  @ApiWrappedCreatedArrayResponse(AdmissionDocumentDto)
+  upload(@CurrentUser() user: AuthUser, @Param('applicantId', new ParseUuidPipe('applicantId')) id: string, @Body() body: { offeringRequiredDocumentIds?: string[] | string; offeringRequiredDocumentId?: string }, @UploadedFile() file?: AdmissionUpload) { return this.service.upload(user, id, this.requirementIds(body), file); }
 
   @Post('link-academic')
   @HttpCode(HttpStatus.CREATED)
   @ApiParam({ name: 'applicantId', format: 'uuid' })
-  @ApiOperation({ summary: 'Link an existing F002 academic document to an F004 requirement without copying its file' })
-  @ApiWrappedCreatedResponse(AdmissionDocumentDto)
+  @ApiBody({ type: LinkAcademicDocumentDto, examples: { shareWithRequirements: { summary: 'Use one existing academic file for equivalent requirements', value: { academicDocumentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', offeringRequiredDocumentIds: ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2'] } } } })
+  @ApiOperation({ summary: 'Link one existing academic document to one or more equivalent offering requirements' })
+  @ApiWrappedCreatedArrayResponse(AdmissionDocumentDto)
   linkAcademic(@CurrentUser() user: AuthUser, @Param('applicantId', new ParseUuidPipe('applicantId')) id: string, @Body() dto: LinkAcademicDocumentDto) { return this.service.linkAcademic(user, id, dto); }
 
   @Get([':documentId/file', ':documentId'])
@@ -68,8 +69,14 @@ export class ApplicantDocumentsController {
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', required: ['file'], properties: { file: { type: 'string', format: 'binary' } } } })
   @ApiOperation({ summary: 'Replace a submitted or returned document; verified documents cannot be replaced' })
-  @ApiWrappedOkResponse(AdmissionDocumentDto)
+  @ApiWrappedRawArrayResponse(AdmissionDocumentDto)
   replace(@CurrentUser() user: AuthUser, @Param('applicantId', new ParseUuidPipe('applicantId')) applicantId: string, @Param('documentId', new ParseUuidPipe('documentId')) documentId: string, @UploadedFile() file?: AdmissionUpload) { return this.service.replace(user, applicantId, documentId, file); }
+
+  private requirementIds(body: { offeringRequiredDocumentIds?: string[] | string; offeringRequiredDocumentId?: string }) {
+    const values = body.offeringRequiredDocumentIds ?? body.offeringRequiredDocumentId;
+    if (!values) return [];
+    return [...new Set((Array.isArray(values) ? values : [values]).map((value) => value.trim()).filter(Boolean))];
+  }
 }
 
 @ApiTags('Admission Document Administration')
@@ -105,12 +112,13 @@ export class AdmissionDocumentsAdminController {
   pending(@ReqContext() user: RequestContext) { return this.service.pending(user); }
   @Get('documents/exceptions') @ApiOperation({ summary: 'List submitted and resubmission-required document exceptions' }) @ApiWrappedOkArrayResponse(AdmissionDocumentDto)
   exceptions(@ReqContext() user: RequestContext) { return this.service.exceptions(user); }
-  @Post('documents/:documentId/verify') @HttpCode(HttpStatus.OK) @ApiParam({ name: 'documentId', format: 'uuid' }) @ApiOperation({ summary: 'Verify an applicant document' }) @ApiWrappedOkResponse(AdmissionDocumentDto)
+  @Post('documents/:documentId/verify') @HttpCode(HttpStatus.OK) @ApiParam({ name: 'documentId', format: 'uuid' }) @ApiOperation({ summary: 'Verify a shared applicant document for every linked offering requirement' }) @ApiWrappedRawArrayResponse(AdmissionDocumentDto)
   verify(@ReqContext() user: RequestContext, @Param('documentId', new ParseUuidPipe('documentId')) id: string) { return this.service.verify(user, id); }
-  @Post('documents/:documentId/request-resubmission') @HttpCode(HttpStatus.OK) @ApiParam({ name: 'documentId', format: 'uuid' }) @ApiOperation({ summary: 'Request a replacement with a reason' }) @ApiWrappedOkResponse(AdmissionDocumentDto)
+  @Post('documents/:documentId/request-resubmission') @HttpCode(HttpStatus.OK) @ApiParam({ name: 'documentId', format: 'uuid' }) @ApiOperation({ summary: 'Return a shared applicant document for replacement across every linked offering requirement' }) @ApiWrappedRawArrayResponse(AdmissionDocumentDto)
   requestResubmission(@ReqContext() user: RequestContext, @Param('documentId', new ParseUuidPipe('documentId')) id: string, @Body() dto: RequestResubmissionDto) { return this.service.requestResubmission(user, id, dto); }
   @Get('documents/:documentId/audit') @ApiParam({ name: 'documentId', format: 'uuid' }) @ApiOperation({ summary: 'Get document action audit history' }) @ApiWrappedOkArrayResponse(DocumentAuditResponseDto)
   audit(@ReqContext() user: RequestContext, @Param('documentId', new ParseUuidPipe('documentId')) id: string) { return this.service.auditHistory(user, id); }
   @Get('documents/:documentId/versions') @ApiParam({ name: 'documentId', format: 'uuid' }) @ApiOperation({ summary: 'Get replacement actions for this document' }) @ApiWrappedOkArrayResponse(DocumentAuditResponseDto)
   versions(@ReqContext() user: RequestContext, @Param('documentId', new ParseUuidPipe('documentId')) id: string) { return this.service.auditHistory(user, id); }
+
 }

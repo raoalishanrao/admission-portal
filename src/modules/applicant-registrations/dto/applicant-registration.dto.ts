@@ -164,6 +164,12 @@ export class RegistrationResponseDto {
     description: 'Whether the verification email was dispatched successfully',
   })
   verificationEmailSent!: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'IAM invitation token when returned by onboard. Lets the client set a password in the same session without waiting for email.',
+  })
+  invitationToken?: string;
 }
 
 export class SetApplicantPasswordResponseDto {

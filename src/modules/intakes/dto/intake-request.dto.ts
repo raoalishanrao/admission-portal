@@ -5,9 +5,12 @@ import {
   IsDate,
   IsNotEmpty,
   IsOptional,
+  IsInt,
   IsString,
   Matches,
   MaxLength,
+  Max,
+  Min,
   MinLength,
   Validate,
 } from 'class-validator';
@@ -33,6 +36,46 @@ const INTAKE_CODE_MESSAGE =
   'intakeCode must be 2–100 chars, start with alphanumeric, and contain only letters, numbers, ".", "_" or "-"';
 
 export class CreateIntakeDto {
+  @ApiPropertyOptional({ description: 'Days allowed after offer publication to accept and complete the required fee payment', minimum: 1, maximum: 30, default: 5, example: 5 })
+  @IsOptional() @Transform(({ value }) => value == null ? value : Number(value)) @IsInt() @Min(1) @Max(30)
+  offerPaymentPeriodDays?: number;
+
+  @ApiPropertyOptional({
+    description: 'MANUAL = staff generate merit; AUTO = generate after results publish',
+    enum: ['MANUAL', 'AUTO'],
+    default: 'MANUAL',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(MANUAL|AUTO)$/)
+  meritGenerationMode?: 'MANUAL' | 'AUTO';
+
+  @ApiPropertyOptional({
+    description: 'Allowed % variance when verifying offer-fee payment amount',
+    minimum: 0,
+    maximum: 100,
+    default: 0,
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value == null ? value : Number(value)))
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  feeConfirmMarginPercent?: number;
+
+  @ApiPropertyOptional({
+    description: 'Extra hours after acceptance deadline before unpaid offer expiry',
+    minimum: 0,
+    maximum: 168,
+    default: 0,
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value == null ? value : Number(value)))
+  @IsInt()
+  @Min(0)
+  @Max(168)
+  offerFeeGraceHours?: number;
+
   @ApiProperty({
     description: 'Human-readable intake name',
     example: 'Fall 2026 Admissions',
@@ -87,6 +130,43 @@ export class CreateIntakeDto {
 }
 
 export class UpdateIntakeDto {
+  @ApiPropertyOptional({ description: 'Days allowed after offer publication to accept and complete the required fee payment', minimum: 1, maximum: 30, example: 5 })
+  @IsOptional() @Transform(({ value }) => value == null ? value : Number(value)) @IsInt() @Min(1) @Max(30)
+  offerPaymentPeriodDays?: number;
+
+  @ApiPropertyOptional({
+    description: 'MANUAL = staff generate merit; AUTO = generate after results publish',
+    enum: ['MANUAL', 'AUTO'],
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(MANUAL|AUTO)$/)
+  meritGenerationMode?: 'MANUAL' | 'AUTO';
+
+  @ApiPropertyOptional({
+    description: 'Allowed % variance when verifying offer-fee payment amount',
+    minimum: 0,
+    maximum: 100,
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value == null ? value : Number(value)))
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  feeConfirmMarginPercent?: number;
+
+  @ApiPropertyOptional({
+    description: 'Extra hours after acceptance deadline before unpaid offer expiry',
+    minimum: 0,
+    maximum: 168,
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value == null ? value : Number(value)))
+  @IsInt()
+  @Min(0)
+  @Max(168)
+  offerFeeGraceHours?: number;
+
   @ApiPropertyOptional({
     description: 'Human-readable intake name',
     example: 'Fall 2026 Admissions (Updated)',
@@ -119,8 +199,15 @@ export class UpdateIntakeDto {
 
   @ApiHideProperty()
   @Allow()
-  @Validate(AtLeastOneOfConstraint, ['intakeName', 'intakeCode'], {
-    message: 'At least one of intakeName or intakeCode is required',
+  @Validate(AtLeastOneOfConstraint, [
+    'intakeName',
+    'intakeCode',
+    'offerPaymentPeriodDays',
+    'meritGenerationMode',
+    'feeConfirmMarginPercent',
+    'offerFeeGraceHours',
+  ], {
+    message: 'At least one intake field is required',
   })
   private readonly _atLeastOne = true;
 }

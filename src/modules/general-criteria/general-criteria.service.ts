@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { RequestContext } from '../../common/decorators/request-context.decorator.js';
 import { CriteriaOperator } from '../../common/enums/criteria-operator.enum.js';
+import { AcademicDegreeType } from '../../common/enums/application-completion.enum.js';
 import { AdmissionCriterionEntity } from '../../database/entities/admission-criterion.entity.js';
 import { CriteriaTypeEntity } from '../../database/entities/criteria-type.entity.js';
 import { GeneralCriterionEntity } from '../../database/entities/general-criterion.entity.js';
@@ -224,7 +225,8 @@ export class GeneralCriteriaService {
         entity.criteriaValueMax != null
           ? Number(entity.criteriaValueMax)
           : null,
-      appliesToDegreeType: entity.appliesToDegreeType,
+      appliesToDegreeType:
+        (entity.appliesToDegreeType as AcademicDegreeType | null) ?? null,
       mandatory: entity.mandatory,
     };
   }

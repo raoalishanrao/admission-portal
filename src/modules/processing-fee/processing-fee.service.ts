@@ -27,6 +27,7 @@ import {
   ReconciliationMatchStatus,
   ReconciliationResolutionStatus,
 } from '../../common/enums/processing-fee.enum.js';
+import { PROCESSING_FEE_TYPE_CODES } from '../../common/enums/offer-fee.enum.js';
 import {
   ApplicationEntity,
   ApplicationProgrammeOptionEntity,
@@ -41,12 +42,14 @@ import {
   ProcessingFeeChallanEntity,
   ProcessingFeeChallanItemEntity,
   ProgrammeOfferingEntity,
+  AdmissionOfferFeeChallanEntity,
 } from '../../database/entities/index.js';
 import {
   OBJECT_STORAGE,
   type ObjectStorage,
 } from '../../integrations/storage/object-storage.interface.js';
 import type { AuthUser } from '../../common/decorators/current-user.decorator.js';
+import { OfferFeesService } from '../offer-fees/offer-fees.service.js';
 import {
   ConfirmOnlinePaymentDto,
   CreateDesignatedBankDto,
@@ -104,6 +107,9 @@ export class ProcessingFeeService {
     private readonly imports: Repository<BankReconciliationImportEntity>,
     @InjectRepository(BankReconciliationRecordEntity)
     private readonly bankRecords: Repository<BankReconciliationRecordEntity>,
+    @InjectRepository(AdmissionOfferFeeChallanEntity)
+    private readonly offerChallans: Repository<AdmissionOfferFeeChallanEntity>,
+    private readonly offerFees: OfferFeesService,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
   ) {}
 
@@ -150,6 +156,7 @@ export class ProcessingFeeService {
     const effectiveFees = feeRows.filter(
       (f) =>
         f.generalFee.status === 'ACTIVE' &&
+        PROCESSING_FEE_TYPE_CODES.has(String(f.generalFee.feeType || '').toUpperCase()) &&
         (!f.effectiveFrom || f.effectiveFrom <= now) &&
         (!f.effectiveTo || f.effectiveTo >= now),
     );
@@ -955,19 +962,81 @@ export class ProcessingFeeService {
       const existing = await this.bankRecords.findOne({
         where: { tenantId: user.tenantId, receiptNo: row.ReceiptNo },
       });
-      const previouslyMatchedChallan = existing?.matchedChallanId
-        ? await this.challans.findOne({
-            where: {
-              id: existing.matchedChallanId,
-              tenantId: user.tenantId,
-            },
-          })
-        : null;
-      const challan = existing
-        ? null
-        : await this.challans.findOne({
+
+      type Matched =
+        | {
+            kind: 'PROCESSING';
+            id: string;
+            registrationNumber: string;
+            totalAmountPayable: string;
+            entity: ProcessingFeeChallanEntity;
+          }
+        | {
+            kind: 'OFFER';
+            id: string;
+            registrationNumber: string;
+            totalAmountPayable: string;
+            entity: AdmissionOfferFeeChallanEntity;
+          };
+
+      let resolved: Matched | null = null;
+      if (!existing) {
+        const processing = await this.challans.findOne({
+          where: { tenantId: user.tenantId, challanNumber: row.ReceiptNo },
+        });
+        if (processing) {
+          resolved = {
+            kind: 'PROCESSING',
+            id: processing.id,
+            registrationNumber: processing.registrationNumber,
+            totalAmountPayable: processing.totalAmountPayable,
+            entity: processing,
+          };
+        } else {
+          const offer = await this.offerChallans.findOne({
             where: { tenantId: user.tenantId, challanNumber: row.ReceiptNo },
           });
+          if (offer) {
+            resolved = {
+              kind: 'OFFER',
+              id: offer.id,
+              registrationNumber: offer.registrationNumber,
+              totalAmountPayable: offer.totalAmountPayable,
+              entity: offer,
+            };
+          }
+        }
+      } else if (existing.matchedChallanId && existing.matchedChallanKind) {
+        if (existing.matchedChallanKind === 'PROCESSING') {
+          const processing = await this.challans.findOne({
+            where: { id: existing.matchedChallanId, tenantId: user.tenantId },
+          });
+          if (processing) {
+            resolved = {
+              kind: 'PROCESSING',
+              id: processing.id,
+              registrationNumber: processing.registrationNumber,
+              totalAmountPayable: processing.totalAmountPayable,
+              entity: processing,
+            };
+          }
+        } else if (existing.matchedChallanKind === 'OFFER') {
+          const offer = await this.offerChallans.findOne({
+            where: { id: existing.matchedChallanId, tenantId: user.tenantId },
+          });
+          if (offer) {
+            resolved = {
+              kind: 'OFFER',
+              id: offer.id,
+              registrationNumber: offer.registrationNumber,
+              totalAmountPayable: offer.totalAmountPayable,
+              entity: offer,
+            };
+          }
+        }
+      }
+
+      const challan = existing && !resolved ? null : resolved;
       const registrationMatch = Boolean(
         challan && row.ConsumerNo === challan.registrationNumber,
       );
@@ -984,9 +1053,9 @@ export class ProcessingFeeService {
         : expected === base;
       const amountMatch = Boolean(
         challan &&
-        Number.isFinite(paid) &&
-        paid === expected &&
-        bankAmountMatchesIssuedFee,
+          Number.isFinite(paid) &&
+          paid === expected &&
+          bankAmountMatchesIssuedFee,
       );
       let matchStatus: ReconciliationMatchStatus;
       if (existing) matchStatus = ReconciliationMatchStatus.DUPLICATE;
@@ -1026,6 +1095,7 @@ export class ProcessingFeeService {
           usertext4: row.usertext4 || null,
           usertext5: row.usertext5 || null,
           matchedChallanId: challan?.id ?? null,
+          matchedChallanKind: challan?.kind ?? null,
           matchStatus,
           registrationMatch: challan ? registrationMatch : null,
           amountMatch: challan ? amountMatch : null,
@@ -1036,17 +1106,28 @@ export class ProcessingFeeService {
           resolutionDate: null,
         }),
       );
-      if (ok && challan && saved)
-        await this.verifyChallanFromBank(
-          user,
-          challan,
-          paid,
-          paidAt,
-          matchStatus === ReconciliationMatchStatus.LATE_PAYMENT,
-        );
-      else if (
+      if (ok && challan && saved && !existing) {
+        if (challan.kind === 'PROCESSING') {
+          await this.verifyChallanFromBank(
+            user,
+            challan.entity,
+            paid,
+            paidAt,
+            matchStatus === ReconciliationMatchStatus.LATE_PAYMENT,
+          );
+        } else {
+          await this.offerFees.verifyChallanFromBank(
+            user.tenantId,
+            user.userId,
+            challan.id,
+            paid,
+            paidAt,
+            matchStatus === ReconciliationMatchStatus.LATE_PAYMENT,
+          );
+        }
+      } else if (
         existing &&
-        previouslyMatchedChallan &&
+        resolved &&
         [
           ReconciliationMatchStatus.MATCHED,
           ReconciliationMatchStatus.LATE_PAYMENT,
@@ -1055,16 +1136,24 @@ export class ProcessingFeeService {
         Number(existing.amount) === paid &&
         existing.datePaid === row.Date_Paid
       ) {
-        // Reprocess an identical previously matched row. This lets a bank
-        // import made before the bank-authoritative status update be safely
-        // replayed after a deployment, while still recording the duplicate.
-        await this.verifyChallanFromBank(
-          user,
-          previouslyMatchedChallan,
-          Number(existing.amount),
-          new Date(`${existing.datePaid}T00:00:00.000Z`),
-          existing.matchStatus === ReconciliationMatchStatus.LATE_PAYMENT,
-        );
+        if (resolved.kind === 'PROCESSING') {
+          await this.verifyChallanFromBank(
+            user,
+            resolved.entity,
+            Number(existing.amount),
+            new Date(`${existing.datePaid}T00:00:00.000Z`),
+            existing.matchStatus === ReconciliationMatchStatus.LATE_PAYMENT,
+          );
+        } else {
+          await this.offerFees.verifyChallanFromBank(
+            user.tenantId,
+            user.userId,
+            resolved.id,
+            Number(existing.amount),
+            new Date(`${existing.datePaid}T00:00:00.000Z`),
+            existing.matchStatus === ReconciliationMatchStatus.LATE_PAYMENT,
+          );
+        }
       }
     }
     batch.matchedRecords = matched;
@@ -1120,17 +1209,33 @@ export class ProcessingFeeService {
       row.registrationMatch &&
       row.amountMatch
     ) {
-      const challan = await this.requireChallan(
-        user.tenantId,
-        row.matchedChallanId,
-      );
-      await this.verifyChallanFromBank(
-        user,
-        challan,
-        Number(row.amount),
-        new Date(row.datePaid),
-        new Date(row.datePaid) > challan.dueDate,
-      );
+      if (row.matchedChallanKind === 'OFFER') {
+        const offerChallan = await this.offerChallans.findOne({
+          where: { id: row.matchedChallanId, tenantId: user.tenantId },
+        });
+        if (offerChallan) {
+          await this.offerFees.verifyChallanFromBank(
+            user.tenantId,
+            user.userId,
+            offerChallan.id,
+            Number(row.amount),
+            new Date(row.datePaid),
+            new Date(row.datePaid) > offerChallan.dueDate,
+          );
+        }
+      } else {
+        const challan = await this.requireChallan(
+          user.tenantId,
+          row.matchedChallanId,
+        );
+        await this.verifyChallanFromBank(
+          user,
+          challan,
+          Number(row.amount),
+          new Date(row.datePaid),
+          new Date(row.datePaid) > challan.dueDate,
+        );
+      }
     }
     return this.bankRecords.save(row);
   }

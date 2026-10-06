@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
+  AdmissionOfferFeeChallanEntity,
   ApplicationEntity,
   ApplicationProgrammeOptionEntity,
   BankReconciliationImportEntity,
@@ -16,6 +17,7 @@ import {
   ProgrammeOfferingEntity,
 } from '../../database/entities/index.js';
 import { StorageModule } from '../../integrations/storage/storage.module.js';
+import { OfferFeesModule } from '../offer-fees/offer-fees.module.js';
 import { ApplicantProcessingFeeController } from './applicant-processing-fee.controller.js';
 import {
   BankReconciliationController,
@@ -26,6 +28,7 @@ import { ProcessingFeeService } from './processing-fee.service.js';
 @Module({
   imports: [
     StorageModule,
+    OfferFeesModule,
     TypeOrmModule.forFeature([
       ApplicationEntity,
       ApplicationProgrammeOptionEntity,
@@ -40,6 +43,7 @@ import { ProcessingFeeService } from './processing-fee.service.js';
       OnlinePaymentTransactionEntity,
       BankReconciliationImportEntity,
       BankReconciliationRecordEntity,
+      AdmissionOfferFeeChallanEntity,
     ]),
   ],
   controllers: [

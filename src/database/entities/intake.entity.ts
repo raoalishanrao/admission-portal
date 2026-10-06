@@ -37,6 +37,29 @@ export class IntakeEntity {
   @Column({ type: 'timestamptz', name: 'application_close_at' })
   applicationCloseAt!: Date;
 
+  @Column({ type: 'int', name: 'offer_payment_period_days', default: 5 })
+  offerPaymentPeriodDays!: number;
+
+  @Column({
+    type: 'varchar',
+    length: 20,
+    name: 'merit_generation_mode',
+    default: 'MANUAL',
+  })
+  meritGenerationMode!: string;
+
+  @Column({
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    name: 'fee_confirm_margin_percent',
+    default: 0,
+  })
+  feeConfirmMarginPercent!: string;
+
+  @Column({ type: 'int', name: 'offer_fee_grace_hours', default: 0 })
+  offerFeeGraceHours!: number;
+
   @Index()
   @Column({ type: 'timestamptz', name: 'published_at', nullable: true })
   publishedAt!: Date | null;

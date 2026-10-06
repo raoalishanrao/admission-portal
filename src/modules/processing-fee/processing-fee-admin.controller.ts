@@ -288,7 +288,7 @@ export class BankReconciliationController {
   @ApiOperation({
     summary: 'Import and reconcile bank CSV',
     description:
-      'Stores the original file and each source row. ReceiptNo matches challan_number, ConsumerNo is checked against registration_number, and Amount is checked against the challan due-date amount. Mismatches and duplicates remain in the exception queue.',
+      'Stores the original file and each source row. ReceiptNo is matched against challan_number on both processing-fee challans and offer-fee (admission) challans; matchedChallanKind is PROCESSING or OFFER. ConsumerNo is checked against registration_number, and Amount against the challan total. Successful matches auto-verify the corresponding challan. Mismatches and duplicates remain in the exception queue.',
   })
   @ApiWrappedCreatedResponse(ReconciliationImportResponseDto)
   importCsv(

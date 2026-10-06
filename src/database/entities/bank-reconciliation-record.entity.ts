@@ -10,7 +10,6 @@ import {
   ReconciliationMatchStatus,
   ReconciliationResolutionStatus,
 } from '../../common/enums/processing-fee.enum.js';
-import { ProcessingFeeChallanEntity } from './processing-fee-challan.entity.js';
 import { BankReconciliationImportEntity } from './bank-reconciliation-import.entity.js';
 
 @Entity({ name: 'bank_reconciliation_records' })
@@ -94,6 +93,14 @@ export class BankReconciliationRecordEntity {
   @Index()
   @Column({ type: 'uuid', name: 'matched_challan_id', nullable: true })
   matchedChallanId!: string | null;
+
+  @Column({
+    type: 'varchar',
+    length: 20,
+    name: 'matched_challan_kind',
+    nullable: true,
+  })
+  matchedChallanKind!: 'PROCESSING' | 'OFFER' | null;
 
   @Column({ type: 'varchar', length: 40, name: 'match_status' })
   matchStatus!: ReconciliationMatchStatus;

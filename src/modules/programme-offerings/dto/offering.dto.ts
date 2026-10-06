@@ -37,6 +37,10 @@ export class CreateOfferingDto {
   @IsUUID(undefined, { message: 'programmeId must be a valid UUID' })
   programmeId!: string;
 
+  @ApiPropertyOptional({ description: 'Maximum admission seats for this offering; required before merit allocation', minimum: 1, example: 60 })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  seatCapacity?: number | null;
+
   @ApiProperty({
     description: 'Applicant-facing offering description',
     example: 'BS Computer Science â€” Fall 2026 admission offering.',
@@ -68,6 +72,9 @@ export class CreateOfferingDto {
 }
 
 export class UpdateOfferingDto {
+  @ApiPropertyOptional({ description: 'Maximum admission seats for this offering; set before merit allocation', minimum: 1, example: 60 })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  seatCapacity?: number | null;
   @ApiPropertyOptional({
     description: 'Applicant-facing offering description',
     example: 'Updated offering description for applicants.',
@@ -100,8 +107,8 @@ export class UpdateOfferingDto {
 
   @ApiHideProperty()
   @Allow()
-  @Validate(AtLeastOneOfConstraint, ['publishedDescription', 'displayOrder'], {
-    message: 'At least one of publishedDescription or displayOrder is required',
+  @Validate(AtLeastOneOfConstraint, ['publishedDescription', 'displayOrder', 'seatCapacity'], {
+    message: 'At least one offering field is required',
   })
   private readonly _atLeastOne = true;
 }
@@ -154,6 +161,9 @@ export class OfferingResponseDto {
 
   @ApiPropertyOptional({ nullable: true, example: 1 })
   displayOrder!: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 60, description: 'Published seat capacity used for merit allocation' })
+  seatCapacity!: number | null;
 
   @ApiProperty({
     example: 'BS Computer Science â€” Fall 2026 admission offering.',

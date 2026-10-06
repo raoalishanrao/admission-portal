@@ -44,6 +44,9 @@ export class ProgrammeOfferingEntity {
   @Column({ type: 'int', name: 'display_order', nullable: true })
   displayOrder!: number | null;
 
+  @Column({ type: 'int', name: 'seat_capacity', nullable: true })
+  seatCapacity!: number | null;
+
   @Column({ type: 'text', name: 'published_description' })
   publishedDescription!: string;
 

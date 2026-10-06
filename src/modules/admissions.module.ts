@@ -17,8 +17,13 @@ import { ProgrammeOfferingsModule } from './programme-offerings/programme-offeri
 import { ProgrammesModule } from './programmes/programmes.module.js';
 import { SupportingInformationModule } from './supporting-information/supporting-information.module.js';
 import { ProcessingFeeModule } from './processing-fee/processing-fee.module.js';
+import { OfferFeesModule } from './offer-fees/offer-fees.module.js';
 import { AdmissionDocumentsModule } from './admission-documents/admission-documents.module.js';
+import { AcademicLevelRequirementsModule } from './academic-level-requirements/academic-level-requirements.module.js';
 import { ApplicationReviewModule } from './application-review/application-review.module.js';
+import { EntryTestModule } from './entry-test/entry-test.module.js';
+import { MeritFormulasModule } from './merit-formulas/merit-formulas.module.js';
+import { SelectionOffersModule } from './selection-offers/selection-offers.module.js';
 
 /**
  * ADM-F000 domain aggregate — Intake & Offering Management.
@@ -31,6 +36,8 @@ import { ApplicationReviewModule } from './application-review/application-review
     CriteriaTypesModule,
     FeeTypesModule,
     DeclarationTypesModule,
+    AcademicLevelRequirementsModule,
+    MeritFormulasModule,
     IntakesModule,
     ProgrammeOfferingsModule,
     GeneralCriteriaModule,
@@ -44,8 +51,11 @@ import { ApplicationReviewModule } from './application-review/application-review
     ApplicantRegistrationsModule,
     ApplicantApplicationsModule,
     ProcessingFeeModule,
+    OfferFeesModule,
     AdmissionDocumentsModule,
     ApplicationReviewModule,
+    EntryTestModule,
+    SelectionOffersModule,
   ],
   exports: [
     DepartmentsModule,
@@ -53,6 +63,8 @@ import { ApplicationReviewModule } from './application-review/application-review
     CriteriaTypesModule,
     FeeTypesModule,
     DeclarationTypesModule,
+    AcademicLevelRequirementsModule,
+    MeritFormulasModule,
     IntakesModule,
     ProgrammeOfferingsModule,
     GeneralCriteriaModule,
@@ -66,8 +78,11 @@ import { ApplicationReviewModule } from './application-review/application-review
     ApplicantRegistrationsModule,
     ApplicantApplicationsModule,
     ProcessingFeeModule,
+    OfferFeesModule,
     AdmissionDocumentsModule,
     ApplicationReviewModule,
+    EntryTestModule,
+    SelectionOffersModule,
   ],
 })
 export class AdmissionsModule {}

@@ -7,12 +7,14 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  Unique,
   UpdateDateColumn,
 } from 'typeorm';
 import { ApplicationAcademicDocumentEntity } from './application-academic-document.entity.js';
 import { ApplicationEntity } from './application.entity.js';
 
 @Entity({ name: 'application_academic_information' })
+@Unique('uq_academic_info_applicant_degree_type', ['applicantId', 'degreeType'])
 export class ApplicationAcademicInformationEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -29,6 +31,7 @@ export class ApplicationAcademicInformationEntity {
   @JoinColumn({ name: 'applicant_id' })
   application!: ApplicationEntity;
 
+  /** Controlled code: MATRIC | FSC | BACHELOR | MASTER | DOCTORATE */
   @Column({ type: 'varchar', length: 80, name: 'degree_type' })
   degreeType!: string;
 

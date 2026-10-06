@@ -24,6 +24,18 @@ export class IntakeResponseDto {
   @ApiProperty({ example: '2026-09-15T23:59:59.000Z' })
   applicationCloseAt!: string;
 
+  @ApiProperty({ example: 5, minimum: 1, maximum: 30, description: 'Offer acceptance and required-fee payment period in days' })
+  offerPaymentPeriodDays!: number;
+
+  @ApiProperty({ enum: ['MANUAL', 'AUTO'], example: 'MANUAL' })
+  meritGenerationMode!: string;
+
+  @ApiProperty({ example: 0, description: 'Allowed % variance when verifying offer-fee payment' })
+  feeConfirmMarginPercent!: number;
+
+  @ApiProperty({ example: 0, description: 'Grace hours after acceptance deadline before unpaid expiry' })
+  offerFeeGraceHours!: number;
+
   @ApiPropertyOptional({ example: null, nullable: true })
   publishedAt!: string | null;
 

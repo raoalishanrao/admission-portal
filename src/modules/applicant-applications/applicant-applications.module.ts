@@ -10,15 +10,18 @@ import { ApplicationProgrammeSelectionEntity } from '../../database/entities/app
 import { ApplicationEntity } from '../../database/entities/application.entity.js';
 import { AdmissionCriterionEntity } from '../../database/entities/admission-criterion.entity.js';
 import { GeneralCriterionEntity } from '../../database/entities/general-criterion.entity.js';
+import { ProgrammeEntity } from '../../database/entities/programme.entity.js';
 import { ProgrammeOfferingEntity } from '../../database/entities/programme-offering.entity.js';
 import { OfferingDeclarationEntity } from '../../database/entities/offering-declaration.entity.js';
 import { StorageModule } from '../../integrations/storage/storage.module.js';
+import { AcademicLevelRequirementsModule } from '../academic-level-requirements/academic-level-requirements.module.js';
 import { ApplicantApplicationsController } from './applicant-applications.controller.js';
 import { ApplicantApplicationsService } from './applicant-applications.service.js';
 
 @Module({
   imports: [
     StorageModule,
+    AcademicLevelRequirementsModule,
     TypeOrmModule.forFeature([
       ApplicationEntity,
       ApplicationAcademicInformationEntity,
@@ -29,6 +32,7 @@ import { ApplicantApplicationsService } from './applicant-applications.service.j
       ApplicationContactEntity,
       ApplicationDeclarationEntity,
       ProgrammeOfferingEntity,
+      ProgrammeEntity,
       OfferingDeclarationEntity,
       AdmissionCriterionEntity,
       GeneralCriterionEntity,

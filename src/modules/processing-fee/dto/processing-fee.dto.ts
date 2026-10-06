@@ -459,6 +459,13 @@ export class BankRecordResponseDto {
 
   @ApiPropertyOptional()
   matchedChallanId!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    enum: ['PROCESSING', 'OFFER'],
+    description: 'Which challan table matched: processing fee or post-offer admission fee',
+  })
+  matchedChallanKind!: 'PROCESSING' | 'OFFER' | null;
 }
 
 export class BankReconciliationRecordResponseDto {
@@ -469,6 +476,12 @@ export class BankReconciliationRecordResponseDto {
   @ApiProperty() matchStatus!: string;
   @ApiProperty() resolutionStatus!: string;
   @ApiPropertyOptional({ nullable: true }) matchedChallanId!: string | null;
+  @ApiPropertyOptional({
+    nullable: true,
+    enum: ['PROCESSING', 'OFFER'],
+    description: 'Which challan table matched: processing fee or post-offer admission fee',
+  })
+  matchedChallanKind!: 'PROCESSING' | 'OFFER' | null;
   @ApiPropertyOptional({ nullable: true }) registrationMatch!: boolean | null;
   @ApiPropertyOptional({ nullable: true }) amountMatch!: boolean | null;
   @ApiPropertyOptional({ nullable: true }) exceptionType!: string | null;

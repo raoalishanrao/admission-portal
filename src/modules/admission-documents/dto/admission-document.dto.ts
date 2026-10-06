@@ -32,14 +32,31 @@ export class UpdateOfferingRequirementDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() active?: boolean;
 }
 export class LinkAcademicDocumentDto {
-  @ApiProperty({ format: 'uuid' }) @IsUUID() offeringRequiredDocumentId!: string;
-  @ApiProperty({ format: 'uuid', description: 'Existing F002 application_academic_documents.id' }) @IsUUID() academicDocumentId!: string;
+  @ApiPropertyOptional({ type: [String], format: 'uuid', description: 'Equivalent selected-offering requirements covered by this one file' }) @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayUnique() @IsUUID(undefined, { each: true }) offeringRequiredDocumentIds?: string[];
+  @ApiPropertyOptional({ format: 'uuid', deprecated: true, description: 'Legacy single-requirement form; prefer offeringRequiredDocumentIds' }) @IsOptional() @IsUUID() offeringRequiredDocumentId?: string;
+  @ApiProperty({ format: 'uuid', description: 'UUID of the existing academic document' }) @IsUUID() academicDocumentId!: string;
 }
 export class RequestResubmissionDto {
   @ApiProperty({ example: 'The scan is not legible.' }) @IsString() @MaxLength(2000) reason!: string;
 }
+export class LinkedDocumentRequirementDto {
+  @ApiProperty({ format: 'uuid' }) applicantDocumentId!: string;
+  @ApiProperty({ format: 'uuid' }) offeringRequiredDocumentId!: string;
+  @ApiProperty({ format: 'uuid' }) programmeOfferingId!: string;
+  @ApiProperty({ enum: ['NOT_SUBMITTED', 'SUBMITTED', 'RESUBMISSION_REQUIRED', 'VERIFIED'] }) status!: string;
+}
+export class ApplicantRequirementStatusDto {
+  @ApiProperty({ format: 'uuid' }) offeringRequiredDocumentId!: string;
+  @ApiProperty({ format: 'uuid' }) programmeOfferingId!: string;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true }) applicantDocumentId?: string | null;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true }) documentFileId?: string | null;
+  @ApiProperty() mandatory!: boolean;
+  @ApiPropertyOptional({ nullable: true }) conditionCode!: string | null;
+  @ApiProperty({ enum: ['NOT_SUBMITTED', 'SUBMITTED', 'RESUBMISSION_REQUIRED', 'VERIFIED'] }) status!: string;
+}
 export class AdmissionDocumentDto {
   @ApiProperty() id!: string;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'Shared uploaded file referenced by one or more offering requirements' }) documentFileId?: string | null;
   @ApiProperty() applicantId!: string;
   @ApiProperty() programmeOfferingId!: string;
   @ApiProperty() offeringRequiredDocumentId!: string;
@@ -59,6 +76,7 @@ export class AdmissionDocumentDto {
   @ApiPropertyOptional({ nullable: true }) resubmissionReason!: string | null;
   @ApiPropertyOptional({ nullable: true }) submittedAt!: Date | null;
   @ApiPropertyOptional({ nullable: true }) verifiedAt!: Date | null;
+  @ApiPropertyOptional({ type: [LinkedDocumentRequirementDto], description: 'All offering requirements using this shared file' }) linkedRequirements?: LinkedDocumentRequirementDto[];
 }
 export class DocumentTypeResponseDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
@@ -97,6 +115,8 @@ export class ApplicantRequirementResponseDto {
   @ApiProperty({ format: 'uuid' }) applicantId!: string;
   @ApiProperty({ format: 'uuid' }) programmeOfferingId!: string;
   @ApiProperty({ format: 'uuid' }) offeringRequiredDocumentId!: string;
+  @ApiProperty({ type: [String], format: 'uuid', description: 'Equivalent requirement IDs covered by one upload item' }) offeringRequiredDocumentIds!: string[];
+  @ApiProperty({ type: [String], format: 'uuid' }) programmeOfferingIds!: string[];
   @ApiProperty({ format: 'uuid' }) documentTypeId!: string;
   @ApiProperty() documentTypeCode!: string;
   @ApiProperty() documentTypeName!: string;
@@ -104,11 +124,12 @@ export class ApplicantRequirementResponseDto {
   @ApiPropertyOptional({ nullable: true }) conditionCode!: string | null;
   @ApiProperty() status!: string;
   @ApiPropertyOptional({ type: AdmissionDocumentDto, nullable: true }) document!: AdmissionDocumentDto | null;
+  @ApiProperty({ type: [ApplicantRequirementStatusDto], description: 'Status remains tracked independently for each offering requirement' }) requirementStatuses!: ApplicantRequirementStatusDto[];
 }
 export class DocumentCompletenessDto {
   @ApiProperty() applicantId!: string;
   @ApiProperty() complete!: boolean;
   @ApiProperty() requiredCount!: number;
   @ApiProperty() verifiedCount!: number;
-  @ApiProperty({ type: [AdmissionDocumentDto] }) requirements!: AdmissionDocumentDto[];
+  @ApiProperty({ type: [ApplicantRequirementResponseDto] }) requirements!: ApplicantRequirementResponseDto[];
 }

@@ -21,6 +21,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  AcademicDegreeType,
   AcademicDocumentType,
   ApplicationAddressType,
   ApplicationContactType,
@@ -42,12 +43,14 @@ const emptyToUndefined = ({ value }: { value: unknown }) => {
 /* ── Academic ─────────────────────────────────────────────────────── */
 
 export class AcademicRecordFieldsDto {
-  @ApiProperty({ example: 'FSC' })
-  @Transform(trimString)
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(80)
-  degreeType!: string;
+  @ApiProperty({
+    enum: AcademicDegreeType,
+    example: AcademicDegreeType.FSC,
+    description:
+      'Controlled academic code. Bachelor programmes typically require MATRIC + FSC.',
+  })
+  @IsEnum(AcademicDegreeType)
+  degreeType!: AcademicDegreeType;
 
   @ApiProperty({ example: 'BISE-LHR-2025-001234', description: 'Board/institution roll number' })
   @Transform(trimString)
@@ -196,8 +199,8 @@ export class AcademicRecordResponseDto {
   @ApiProperty()
   id!: string;
 
-  @ApiProperty()
-  degreeType!: string;
+  @ApiProperty({ enum: AcademicDegreeType })
+  degreeType!: AcademicDegreeType;
 
   @ApiPropertyOptional({ nullable: true })
   rollNumber!: string | null;

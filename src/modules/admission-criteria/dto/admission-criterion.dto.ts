@@ -29,6 +29,7 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 import { CriteriaOperator } from '../../../common/enums/criteria-operator.enum.js';
+import { AcademicDegreeType } from '../../../common/enums/application-completion.enum.js';
 import {
   AtLeastOneOfConstraint,
   IsAfterDate,
@@ -200,18 +201,15 @@ export class CreateAdmissionCriterionItemDto {
   criteriaValueMax?: number | null;
 
   @ApiPropertyOptional({
-    description:
-      'Option B: academic degree_type this rule applies to (e.g. FSC)',
-    example: 'FSC',
-    maxLength: 80,
+    description: 'Option B: academic degree_type this rule applies to',
+    enum: AcademicDegreeType,
+    example: AcademicDegreeType.FSC,
     nullable: true,
   })
   @ValidateIf((o: CreateAdmissionCriterionItemDto) => !o.generalCriteriaId)
   @IsOptional()
-  @Transform(trimString)
-  @IsString()
-  @MaxLength(80)
-  appliesToDegreeType?: string | null;
+  @IsEnum(AcademicDegreeType)
+  appliesToDegreeType?: AcademicDegreeType | null;
 
   @ApiPropertyOptional({
     description: 'Option B: whether criterion is mandatory (default true)',
@@ -390,16 +388,14 @@ export class UpdateAdmissionCriterionDto {
   criteriaValueMax?: number | null;
 
   @ApiPropertyOptional({
-    description: 'Academic degree_type this rule applies to (e.g. FSC)',
-    example: 'FSC',
-    maxLength: 80,
+    description: 'Academic degree_type this rule applies to',
+    enum: AcademicDegreeType,
+    example: AcademicDegreeType.FSC,
     nullable: true,
   })
   @IsOptional()
-  @Transform(trimString)
-  @IsString()
-  @MaxLength(80)
-  appliesToDegreeType?: string | null;
+  @IsEnum(AcademicDegreeType)
+  appliesToDegreeType?: AcademicDegreeType | null;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()
@@ -502,8 +498,12 @@ export class AdmissionCriterionResponseDto {
   @ApiPropertyOptional({ nullable: true, example: 80 })
   criteriaValueMax!: number | null;
 
-  @ApiPropertyOptional({ nullable: true, example: 'FSC' })
-  appliesToDegreeType!: string | null;
+  @ApiPropertyOptional({
+    nullable: true,
+    example: AcademicDegreeType.FSC,
+    enum: AcademicDegreeType,
+  })
+  appliesToDegreeType!: AcademicDegreeType | null;
 
   @ApiProperty({ example: true })
   mandatory!: boolean;

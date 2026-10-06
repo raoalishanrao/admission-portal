@@ -124,14 +124,33 @@ async function bootstrap() {
     )
     .addTag(
       'Bank Reconciliation',
-      'Bank CSV imports, payment matching and exception resolution',
+      'Bank CSV imports matching processing-fee and offer-fee challans, plus exception resolution',
+    )
+    .addTag(
+      'Offer Fee (Admission Challan)',
+      'Post-offer admission fee challan, evidence verification, expire unpaid and promote waitlist',
+    )
+    .addTag(
+      'Applicant Offer Fee',
+      'Applicant view of admission/offer fee challan and evidence upload',
     )
     .addTag('Departments', 'Academic department master data')
     .addTag('Programmes', 'Programme master data')
     .addTag('Criteria Types', 'Criteria-type catalogue')
     .addTag('Fee Types', 'Fee-type catalogue')
     .addTag('Declaration Types', 'Declaration-type catalogue')
+    .addTag(
+      'Academic Level Requirements',
+      'Required academic degree_type codes by programme degree level (e.g. Bachelor → MATRIC + FSC)',
+    )
+    .addTag(
+      'Merit Formulas',
+      'Weighted merit calculation templates (e.g. Matric 10% + FSC 45% + Entry test 45%) and offering overrides',
+    )
     .addTag('Health', 'Service health')
+    .addTag('Selection, Results & Admission Offers', 'ADM-F007 result processing, coordinated allocation and offers')
+    .addTag('Applicant Results & Offer', 'Applicant result and offer reads')
+    .addTag('F008 Internal Offer Events', 'Authenticated internal offer-response events')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
