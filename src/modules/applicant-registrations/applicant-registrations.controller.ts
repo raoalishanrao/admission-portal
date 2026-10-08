@@ -1,5 +1,6 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiBody,
   ApiExtraModels,
   ApiOperation,
@@ -8,11 +9,17 @@ import {
 import {
   ApiStandardErrorResponses,
   ApiWrappedCreatedResponse,
+  ApiWrappedOkArrayResponse,
 } from '../../common/decorators/api-docs.decorator.js';
+import {
+  CurrentUser,
+  type AuthUser,
+} from '../../common/decorators/current-user.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 import { ApplicantRegistrationsService } from './applicant-registrations.service.js';
 import {
+  ApplicantOwnedApplicationDto,
   RegisterApplicantDto,
   RegistrationResponseDto,
   SetApplicantPasswordDto,
@@ -25,6 +32,7 @@ import {
   RegistrationResponseDto,
   SetApplicantPasswordDto,
   SetApplicantPasswordResponseDto,
+  ApplicantOwnedApplicationDto,
   ApiErrorResponseDto,
 )
 @ApiStandardErrorResponses()
@@ -104,5 +112,27 @@ export class ApplicantRegistrationsController {
     @Body() dto: SetApplicantPasswordDto,
   ): Promise<SetApplicantPasswordResponseDto> {
     return this.registrationsService.setPassword(dto);
+  }
+}
+
+@ApiTags('Applicant Registration')
+@ApiBearerAuth('bearer')
+@ApiExtraModels(ApplicantOwnedApplicationDto, ApiErrorResponseDto)
+@ApiStandardErrorResponses()
+@Controller('applicants/me')
+export class ApplicantMeController {
+  constructor(
+    private readonly registrationsService: ApplicantRegistrationsService,
+  ) {}
+
+  @Get('applications')
+  @ApiOperation({
+    summary: 'List applications owned by the signed-in applicant',
+    description:
+      'Returns applications bound to the current IAM user. Used by My Application after login.',
+  })
+  @ApiWrappedOkArrayResponse(ApplicantOwnedApplicationDto)
+  listMine(@CurrentUser() user: AuthUser): Promise<ApplicantOwnedApplicationDto[]> {
+    return this.registrationsService.listMine(user);
   }
 }

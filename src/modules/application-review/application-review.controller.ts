@@ -4,14 +4,14 @@ import { ApiStandardErrorResponses, ApiTenantHeaders, ApiWrappedOkArrayResponse,
 import { ReqContext, type RequestContext } from '../../common/decorators/request-context.decorator.js';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 import { ParseUuidPipe } from '../../common/pipes/parse-uuid.pipe.js';
-import { ApplicationDecisionDto, ApplicationDecisionResponseDto, ApplicationQueueItemDto, ApplicationReviewListDto, ApplicationReviewQueryDto, ApplicationReviewResponseDto, ApplicationStatusAuditDto } from './dto/application-review.dto.js';
+import { ApplicationDecisionDto, ApplicationDecisionResponseDto, ApplicationListPreferenceDto, ApplicationQueueItemDto, ApplicationReviewListDto, ApplicationReviewQueryDto, ApplicationReviewResponseDto, ApplicationStatusAuditDto } from './dto/application-review.dto.js';
 import { ApplicationReviewService } from './application-review.service.js';
 
 @ApiTags('Application Review and Decision')
 @ApiBearerAuth('bearer')
 @ApiTenantHeaders()
 @ApiStandardErrorResponses()
-@ApiExtraModels(ApiErrorResponseDto, ApplicationReviewQueryDto, ApplicationQueueItemDto, ApplicationReviewListDto, ApplicationReviewResponseDto, ApplicationDecisionDto, ApplicationDecisionResponseDto, ApplicationStatusAuditDto)
+@ApiExtraModels(ApiErrorResponseDto, ApplicationReviewQueryDto, ApplicationListPreferenceDto, ApplicationQueueItemDto, ApplicationReviewListDto, ApplicationReviewResponseDto, ApplicationDecisionDto, ApplicationDecisionResponseDto, ApplicationStatusAuditDto)
 @Controller('admissions/applications')
 export class ApplicationReviewController {
   constructor(private readonly service: ApplicationReviewService) {}
@@ -35,7 +35,7 @@ export class ApplicationReviewController {
 
   @Patch(':applicantId/status')
   @ApiParam({ name: 'applicantId', format: 'uuid' })
-  @ApiOperation({ summary: 'Approve or reject a submitted application', description: 'Approval requires verified processing fee and a complete verified document set. Rejection requires a valid reason code and text. Final decisions cannot be overwritten.' })
+  @ApiOperation({ summary: 'Approve or reject a submitted application', description: 'Approval requires verified processing fee and a complete verified document set. On approval, an admit card is generated automatically from the matching published test session. Rejection requires a valid reason code and text. Final decisions cannot be overwritten.' })
   @ApiWrappedOkResponse(ApplicationDecisionResponseDto)
   decide(@ReqContext() ctx: RequestContext, @Param('applicantId', new ParseUuidPipe('applicantId')) id: string, @Body() dto: ApplicationDecisionDto) { return this.service.decide(ctx, id, dto); }
 }

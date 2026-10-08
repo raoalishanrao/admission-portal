@@ -275,12 +275,135 @@ export class OfferFeesService {
 
   async getChallanForApplicant(user: AuthUser, applicantId: string) {
     await this.requireApplicant(user, applicantId);
-    const challan = await this.challans.findOne({
-      where: { tenantId: user.tenantId, applicantId },
-      order: { createdAt: 'DESC' },
-    });
+    const challan = await this.resolveChallanForApplicant(
+      user.tenantId,
+      applicantId,
+      { ensureIfPublished: true },
+    );
     if (!challan) throw new NotFoundException('Offer fee challan not found');
     return this.challanResponse(challan, true);
+  }
+
+  /**
+   * Resolve offer-fee challan + current evidence for an application.
+   * If the offer is PUBLISHED but the challan was never generated (e.g. fee
+   * config was missing at publish time), optionally attempts generation.
+   */
+  async getOfferFeeBundleForApplicant(
+    user: AuthUser,
+    applicantId: string,
+    options?: { ensureIfPublished?: boolean },
+  ) {
+    await this.requireApplicant(user, applicantId);
+    return this.getOfferFeeBundle(user.tenantId, applicantId, options);
+  }
+
+  async getOfferFeeBundle(
+    tenantId: string,
+    applicantId: string,
+    options?: { ensureIfPublished?: boolean },
+  ) {
+    const challan = await this.resolveChallanForApplicant(tenantId, applicantId, {
+      ensureIfPublished: options?.ensureIfPublished ?? true,
+    });
+    if (!challan) {
+      return { challan: null, currentEvidence: null };
+    }
+    const evidence = await this.evidences.findOne({
+      where: {
+        tenantId,
+        challanId: challan.id,
+        isCurrent: true,
+      },
+      order: { uploadDate: 'DESC' },
+    });
+    return {
+      challan: await this.challanResponse(challan, true),
+      currentEvidence: evidence
+        ? {
+            id: evidence.id,
+            challanId: evidence.challanId,
+            fileFormat: evidence.fileFormat,
+            evidenceSource: evidence.evidenceSource,
+            amountClaimed: evidence.amountClaimed,
+            verificationIndicator: evidence.verificationIndicator,
+            uploadDate: evidence.uploadDate.toISOString(),
+            downloadUrl: await this.storage
+              .resolveDownloadUrl(evidence.storageKey)
+              .catch(() => null),
+          }
+        : null,
+    };
+  }
+
+  private async resolveChallanForApplicant(
+    tenantId: string,
+    applicantId: string,
+    options?: { ensureIfPublished?: boolean },
+  ) {
+    let challan = await this.challans.findOne({
+      where: { tenantId, applicantId },
+      order: { createdAt: 'DESC' },
+    });
+    if (challan) return challan;
+
+    const offer = (
+      await this.db.query(
+        `SELECT *
+         FROM admission_offers
+         WHERE tenant_id = $1
+           AND application_record_id = $2
+           AND status IN ('PUBLISHED', 'ACCEPTED', 'DECLINED', 'EXPIRED')
+         ORDER BY
+           CASE status
+             WHEN 'PUBLISHED' THEN 0
+             WHEN 'ACCEPTED' THEN 1
+             ELSE 2
+           END,
+           created_at DESC
+         LIMIT 1`,
+        [tenantId, applicantId],
+      )
+    )[0] as
+      | {
+          id: string;
+          fee_challan_id: string | null;
+          status: string;
+          application_record_id: string;
+          programme_offering_id: string;
+          acceptance_deadline: Date | string;
+        }
+      | undefined;
+
+    if (!offer) return null;
+
+    if (offer.fee_challan_id) {
+      challan = await this.challans.findOne({
+        where: { id: offer.fee_challan_id, tenantId },
+      });
+      if (challan) return challan;
+    }
+
+    challan = await this.challans.findOne({
+      where: { tenantId, offerId: offer.id },
+    });
+    if (challan) return challan;
+
+    if (
+      options?.ensureIfPublished &&
+      (offer.status === 'PUBLISHED' || offer.status === 'ACCEPTED')
+    ) {
+      try {
+        const generated = await this.generateForOffer(tenantId, offer);
+        return this.challans.findOne({
+          where: { id: generated.id, tenantId },
+        });
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
   }
 
   async getChallanByOffer(ctx: RequestContext, offerId: string) {

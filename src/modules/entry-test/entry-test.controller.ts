@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiExtraModels, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { ApiStandardErrorResponses, ApiTenantHeaders, ApiWrappedCreatedResponse, ApiWrappedOkResponse, ApiWrappedRawArrayResponse } from '../../common/decorators/api-docs.decorator.js';
@@ -6,29 +6,32 @@ import { ReqContext, type RequestContext } from '../../common/decorators/request
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 import { ParseUuidPipe } from '../../common/pipes/parse-uuid.pipe.js';
 import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator.js';
-import { AdmitCardResponseDto, AttendanceAuditResponseDto, AttendanceQrResponseDto, AttendanceResponseDto, CreateTestCentreDto, EntryTestOutcomeResponseDto, MarkAttendanceDto, RecordOutcomeDto, TestCentreResponseDto, TestSessionDto, TestSessionResponseDto, UpdateTestCentreDto, UpdateTestSessionDto } from './dto/entry-test.dto.js';
+import { AdmitCardResponseDto, AssignAdmitCardSessionDto, AttendanceAuditResponseDto, AttendanceQrResponseDto, AttendanceResponseDto, CreateTestCentreDto, EntryTestOutcomeResponseDto, MarkAttendanceDto, RecordOutcomeDto, TestCentreResponseDto, TestSessionDto, TestSessionResponseDto, UpdateTestCentreDto, UpdateTestSessionDto } from './dto/entry-test.dto.js';
 import { EntryTestService } from './entry-test.service.js';
 
 @ApiTags('Entry Test Scheduling and Admit Cards')
 @ApiBearerAuth('bearer')
 @ApiTenantHeaders()
 @ApiStandardErrorResponses()
-@ApiExtraModels(ApiErrorResponseDto, CreateTestCentreDto, UpdateTestCentreDto, TestCentreResponseDto, TestSessionDto, UpdateTestSessionDto, TestSessionResponseDto, AdmitCardResponseDto, AttendanceResponseDto, AttendanceQrResponseDto, AttendanceAuditResponseDto, EntryTestOutcomeResponseDto, MarkAttendanceDto, RecordOutcomeDto)
+@ApiExtraModels(ApiErrorResponseDto, CreateTestCentreDto, UpdateTestCentreDto, TestCentreResponseDto, TestSessionDto, UpdateTestSessionDto, TestSessionResponseDto, AdmitCardResponseDto, AssignAdmitCardSessionDto, AttendanceResponseDto, AttendanceQrResponseDto, AttendanceAuditResponseDto, EntryTestOutcomeResponseDto, MarkAttendanceDto, RecordOutcomeDto)
 @Controller('admissions')
 export class EntryTestAdminController {
   constructor(private readonly service: EntryTestService) {}
 
   @Post('test-centres')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a test centre for a published intake' })
+  @ApiOperation({ summary: 'Create a tenant-level test centre (reusable across intakes)' })
   @ApiWrappedCreatedResponse(TestCentreResponseDto)
   createCentre(@ReqContext() user: RequestContext, @Body() dto: CreateTestCentreDto) { return this.service.createCentre(user, dto); }
 
   @Get('test-centres')
-  @ApiQuery({ name: 'intakeSessionId', required: false, format: 'uuid' })
-  @ApiOperation({ summary: 'List test centres, optionally filtered by intake' })
+  @ApiQuery({ name: 'active', required: false, type: Boolean })
+  @ApiOperation({ summary: 'List tenant test centres, optionally filtered by active flag' })
   @ApiWrappedRawArrayResponse(TestCentreResponseDto)
-  centres(@ReqContext() user: RequestContext, @Query('intakeSessionId') intakeId?: string) { return this.service.listCentres(user, intakeId); }
+  centres(@ReqContext() user: RequestContext, @Query('active') active?: string) {
+    const activeFilter = active === undefined ? undefined : active === 'true' || active === '1';
+    return this.service.listCentres(user, activeFilter);
+  }
 
   @Patch('test-centres/:id')
   @ApiParam({ name: 'id', format: 'uuid' })
@@ -38,17 +41,17 @@ export class EntryTestAdminController {
 
   @Post('test-sessions')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a test session' })
+  @ApiOperation({ summary: 'Create a test session for an intake using a tenant centre and offering list' })
   @ApiWrappedCreatedResponse(TestSessionResponseDto)
   createSession(@ReqContext() user: RequestContext, @Body() dto: TestSessionDto) { return this.service.createSession(user, dto); }
 
   @Get('test-sessions')
   @ApiQuery({ name: 'testCentreId', required: false, format: 'uuid' })
-  @ApiQuery({ name: 'programmeId', required: false, format: 'uuid' })
+  @ApiQuery({ name: 'offeringId', required: false, format: 'uuid' })
   @ApiQuery({ name: 'intakeSessionId', required: false, format: 'uuid' })
   @ApiOperation({ summary: 'List and filter test sessions' })
   @ApiWrappedRawArrayResponse(TestSessionResponseDto)
-  sessions(@ReqContext() user: RequestContext, @Query('testCentreId') testCentreId?: string, @Query('programmeId') programmeId?: string, @Query('intakeSessionId') intakeSessionId?: string) { return this.service.listSessions(user, { testCentreId, programmeId, intakeSessionId }); }
+  sessions(@ReqContext() user: RequestContext, @Query('testCentreId') testCentreId?: string, @Query('offeringId') offeringId?: string, @Query('intakeSessionId') intakeSessionId?: string) { return this.service.listSessions(user, { testCentreId, offeringId, intakeSessionId }); }
 
   @Patch('test-sessions/:id')
   @ApiParam({ name: 'id', format: 'uuid' })
@@ -62,6 +65,23 @@ export class EntryTestAdminController {
   @ApiOperation({ summary: 'Generate and publish the idempotent admit-card snapshot for an approved applicant' })
   @ApiWrappedCreatedResponse(AdmitCardResponseDto)
   generateCard(@ReqContext() user: RequestContext, @Param('applicantId', new ParseUuidPipe('applicantId')) id: string) { return this.service.generateAdmitCard(user, id); }
+
+  @Put('applications/:applicantId/admit-card/session')
+  @HttpCode(HttpStatus.OK)
+  @ApiParam({ name: 'applicantId', format: 'uuid' })
+  @ApiBody({ type: AssignAdmitCardSessionDto })
+  @ApiOperation({
+    summary: 'Manually assign a test session (and its centre) to an approved applicant',
+    description: 'Creates or reissues the admit card for the chosen published session. Session must match the applicant intake and cover at least one of their programme preferences. Reassignment is blocked after attendance is marked.',
+  })
+  @ApiWrappedOkResponse(AdmitCardResponseDto)
+  assignSession(
+    @ReqContext() user: RequestContext,
+    @Param('applicantId', new ParseUuidPipe('applicantId')) id: string,
+    @Body() dto: AssignAdmitCardSessionDto,
+  ) {
+    return this.service.assignAdmitCardSession(user, id, dto);
+  }
 
   @Get('applications/:applicantId/admit-card')
   @ApiParam({ name: 'applicantId', format: 'uuid' })

@@ -7,7 +7,7 @@ export * from './application-contact.entity.js';
 export * from './application-declaration.entity.js';
 export * from './test-centre.entity.js';
 export * from './test-session.entity.js';
-export * from './test-session-programme.entity.js';
+export * from './test-session-offering.entity.js';
 export * from './application-admit-card.entity.js';
 export * from './application-attendance.entity.js';
 export * from './application-attendance-scan.entity.js';

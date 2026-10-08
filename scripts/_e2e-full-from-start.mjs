@@ -105,11 +105,11 @@ await db.query(
   [[BSIT_OFFERING, PRO_OFFERING]],
 );
 await db.query(
-  `insert into test_session_programmes (tenant_id, test_session_id, programme_id)
+  `insert into test_session_offerings (tenant_id, test_session_id, programme_offering_id)
    select $1,$2,$3 where not exists (
-     select 1 from test_session_programmes where test_session_id=$2 and programme_id=$3
+     select 1 from test_session_offerings where test_session_id=$2 and programme_offering_id=$3
    )`,
-  [tenantId, SESSION_ID, BSIT_PROGRAMME],
+  [tenantId, SESSION_ID, BSIT_OFFERING],
 );
 
 // Prep: admission/tuition offer fees on both offerings + AUTO merit

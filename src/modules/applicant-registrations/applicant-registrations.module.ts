@@ -4,7 +4,10 @@ import { ApplicationEntity } from '../../database/entities/application.entity.js
 import { IntakeEntity } from '../../database/entities/intake.entity.js';
 import { IamModule } from '../../integrations/base-platform/iam/iam.module.js';
 import { EmailModule } from '../../integrations/email/email.module.js';
-import { ApplicantRegistrationsController } from './applicant-registrations.controller.js';
+import {
+  ApplicantMeController,
+  ApplicantRegistrationsController,
+} from './applicant-registrations.controller.js';
 import { ApplicantRegistrationsService } from './applicant-registrations.service.js';
 
 @Module({
@@ -13,7 +16,7 @@ import { ApplicantRegistrationsService } from './applicant-registrations.service
     IamModule,
     EmailModule,
   ],
-  controllers: [ApplicantRegistrationsController],
+  controllers: [ApplicantRegistrationsController, ApplicantMeController],
   providers: [ApplicantRegistrationsService],
   exports: [ApplicantRegistrationsService],
 })

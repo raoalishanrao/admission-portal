@@ -308,6 +308,11 @@ export class ProcessingFeeChallanResponseDto {
   @ApiProperty()
   applicantName!: string;
 
+  @ApiPropertyOptional({
+    description: 'Applicant mobile/contact number snapshotted onto the challan',
+  })
+  applicantContactNumber?: string;
+
   @ApiProperty()
   registrationNumber!: string;
 
@@ -343,6 +348,9 @@ export class ProcessingFeeChallanResponseDto {
 
   @ApiProperty()
   branchCode!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  institutionCode?: string | null;
 
   @ApiProperty({ type: [ProcessingFeeChallanItemResponseDto] })
   items!: ProcessingFeeChallanItemResponseDto[];

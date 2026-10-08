@@ -174,14 +174,23 @@ export class ApplicantApplicationsService {
     const app = await this.requireOwnedEditable(user, applicantId);
     this.assertUniqueDegreeTypesInPayload(dto.records.map((r) => r.degreeType));
 
-    const existingCount = await this.academicInfoRepo.count({
+    const existing = await this.academicInfoRepo.find({
       where: { applicantId, tenantId: app.tenantId },
     });
-    if (existingCount > 0) {
+    const present = new Set(
+      existing.map((row) => row.degreeType.trim().toUpperCase()),
+    );
+    const duplicates = dto.records.filter((record) =>
+      present.has(record.degreeType.trim().toUpperCase()),
+    );
+    if (duplicates.length > 0) {
       throw new BusinessException(
-        'Academic records already exist; use PUT to update',
+        `You already added ${duplicates
+          .map((r) => r.degreeType)
+          .join(', ')}. Edit that qualification instead of adding it again.`,
         HttpStatus.CONFLICT,
-        'ACADEMIC_ALREADY_EXISTS',
+        'ACADEMIC_DEGREE_TYPE_EXISTS',
+        { degreeTypes: duplicates.map((r) => r.degreeType) },
       );
     }
 
@@ -631,13 +640,9 @@ export class ApplicantApplicationsService {
     dto: CreateContactsDto,
   ): Promise<ApplicationContactResponseDto[]> {
     const app = await this.requireOwnedEditable(user, applicantId);
+    // Validate emergency relationship rules for any EMERGENCY rows in this
+    // payload. Parent/Guardian + Emergency pair is enforced when profile is saved.
     this.assertEmergencyRules(dto.contacts);
-
-    const existing = await this.contactsRepo.find({
-      where: { applicantId, tenantId: app.tenantId },
-    });
-    const merged = [...existing, ...dto.contacts];
-    this.assertHasEmergency(merged);
 
     await this.contactsRepo.save(
       dto.contacts.map((c) =>
@@ -762,7 +767,7 @@ export class ApplicantApplicationsService {
     const contacts = await this.contactsRepo.find({
       where: { applicantId, tenantId },
     });
-    this.assertHasEmergency(contacts);
+    this.assertContactPair(contacts);
     this.assertEmergencyRules(contacts);
   }
 
@@ -964,10 +969,8 @@ export class ApplicantApplicationsService {
       }
     }
 
-    if (app.academicStepSaved) {
-      await this.assertRequiredAcademicLevels(app, applicantId, offeringIds);
-      await this.assertEligibilityMet(app, applicantId, offeringIds);
-    }
+    // Academic / eligibility checks run on the Academic step and at submit.
+    // Programme may be saved before academics (programme-first flow).
 
     const now = new Date();
     await this.dataSource.transaction(async (manager) => {
@@ -1252,6 +1255,38 @@ export class ApplicantApplicationsService {
         'EMERGENCY_CONTACT_REQUIRED',
       );
     }
+  }
+
+  private assertParentOrGuardian(
+    contacts: Array<{ contactType: ApplicationContactType }>,
+  ): void {
+    if (
+      !contacts.some(
+        (c) =>
+          c.contactType === ApplicationContactType.PARENT ||
+          c.contactType === ApplicationContactType.GUARDIAN,
+      )
+    ) {
+      throw new BusinessException(
+        'PARENT or GUARDIAN contact is required',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'PARENT_OR_GUARDIAN_CONTACT_REQUIRED',
+      );
+    }
+  }
+
+  private assertContactPair(
+    contacts: Array<{ contactType: ApplicationContactType }>,
+  ): void {
+    if (contacts.length < 2) {
+      throw new BusinessException(
+        'At least two contacts are required (Parent/Guardian and Emergency)',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'CONTACTS_INCOMPLETE',
+      );
+    }
+    this.assertParentOrGuardian(contacts);
+    this.assertHasEmergency(contacts);
   }
 
   private assertEmergencyRules(

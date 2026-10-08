@@ -2,7 +2,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ArrayNotEmpty, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 
 export class CreateTestCentreDto {
-  @ApiProperty({ format: 'uuid' }) @IsUUID() intakeSessionId!: string;
   @ApiProperty({ example: 'Main Campus Test Centre' }) @IsString() @IsNotEmpty() @MaxLength(200) centreName!: string;
   @ApiProperty({ example: '1 University Road, Lahore' }) @IsString() @IsNotEmpty() @MaxLength(500) location!: string;
   @ApiPropertyOptional({ default: true }) @IsOptional() @IsBoolean() active?: boolean;
@@ -14,7 +13,8 @@ export class UpdateTestCentreDto {
 }
 export class TestSessionDto {
   @ApiProperty({ format: 'uuid' }) @IsUUID() testCentreId!: string;
-  @ApiProperty({ type: [String], format: 'uuid', description: 'One or more active programmes offered in the intake attached to this centre.', example: ['3fa85f64-5717-4562-b3fc-2c963f66afa6'] }) @IsArray() @ArrayNotEmpty() @ArrayUnique() @IsUUID(undefined, { each: true }) programmeIds!: string[];
+  @ApiProperty({ format: 'uuid', description: 'Intake this session belongs to.' }) @IsUUID() intakeSessionId!: string;
+  @ApiProperty({ type: [String], format: 'uuid', description: 'One or more published programme offerings in this intake.', example: ['3fa85f64-5717-4562-b3fc-2c963f66afa6'] }) @IsArray() @ArrayNotEmpty() @ArrayUnique() @IsUUID(undefined, { each: true }) offeringIds!: string[];
   @ApiProperty({ example: '2026-11-20', format: 'date' }) @IsDateString() testDate!: string;
   @ApiProperty({ example: '08:00:00', format: 'time' }) @IsString() reportingTime!: string;
   @ApiProperty({ example: '09:00:00', format: 'time' }) @IsString() testTime!: string;
@@ -24,13 +24,19 @@ export class TestSessionDto {
 }
 export class UpdateTestSessionDto {
   @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID() testCentreId?: string;
-  @ApiPropertyOptional({ type: [String], format: 'uuid', description: 'Replace the programme associations for this session.' }) @IsOptional() @IsArray() @ArrayNotEmpty() @ArrayUnique() @IsUUID(undefined, { each: true }) programmeIds?: string[];
+  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID() intakeSessionId?: string;
+  @ApiPropertyOptional({ type: [String], format: 'uuid', description: 'Replace the offering associations for this session.' }) @IsOptional() @IsArray() @ArrayNotEmpty() @ArrayUnique() @IsUUID(undefined, { each: true }) offeringIds?: string[];
   @ApiPropertyOptional({ format: 'date' }) @IsOptional() @IsDateString() testDate?: string;
   @ApiPropertyOptional({ format: 'time' }) @IsOptional() @IsString() reportingTime?: string;
   @ApiPropertyOptional({ format: 'time' }) @IsOptional() @IsString() testTime?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @IsNotEmpty() @MaxLength(100) room?: string;
   @ApiPropertyOptional({ nullable: true, minimum: 1 }) @IsOptional() @IsInt() @Min(1) @Max(100000) capacity?: number | null;
   @ApiPropertyOptional({ enum: ['DRAFT', 'PUBLISHED', 'CLOSED', 'CANCELLED'] }) @IsOptional() @IsIn(['DRAFT', 'PUBLISHED', 'CLOSED', 'CANCELLED']) status?: string;
+}
+export class AssignAdmitCardSessionDto {
+  @ApiProperty({ format: 'uuid', description: 'Published test session to assign. Centre/venue comes from this session.' })
+  @IsUUID()
+  testSessionId!: string;
 }
 export class MarkAttendanceDto {
   @ApiProperty({ enum: ['PRESENT', 'ABSENT'] }) @IsIn(['PRESENT', 'ABSENT']) attendanceStatus!: 'PRESENT' | 'ABSENT';

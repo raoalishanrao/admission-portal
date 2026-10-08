@@ -9,6 +9,7 @@ import type { AuthUser } from '../../common/decorators/current-user.decorator.js
 import { ApplicationAcademicDocumentEntity, ApplicationAcademicInformationEntity, ApplicationAddressEntity, ApplicationContactEntity, ApplicationDeclarationEntity, ApplicationEntity, ApplicationProgrammeOptionEntity, ApplicationStatusAuditEntity, IntakeEntity } from '../../database/entities/index.js';
 import { OBJECT_STORAGE, type ObjectStorage } from '../../integrations/storage/object-storage.interface.js';
 import { AdmissionDocumentsService } from '../admission-documents/admission-documents.service.js';
+import { EntryTestService } from '../entry-test/entry-test.service.js';
 import { ProcessingFeeService } from '../processing-fee/processing-fee.service.js';
 import { ApplicationDecisionDto, ApplicationReviewQueue, ApplicationReviewQueryDto } from './dto/application-review.dto.js';
 
@@ -30,6 +31,7 @@ export class ApplicationReviewService {
     @InjectRepository(ApplicationStatusAuditEntity) private readonly statusAudits: Repository<ApplicationStatusAuditEntity>,
     private readonly admissionDocuments: AdmissionDocumentsService,
     private readonly processingFees: ProcessingFeeService,
+    private readonly entryTest: EntryTestService,
     private readonly dataSource: DataSource,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
   ) {}
@@ -47,8 +49,40 @@ export class ApplicationReviewService {
     const total = filtered.length;
     const offset = (query.page - 1) * query.limit;
     const rows = filtered.slice(offset, offset + query.limit);
-    const intakeRows = await this.intakes.findBy({ id: In([...new Set(rows.map(x => x.app.intakeId))]), tenantId: user.tenantId });
+    const applicantIds = rows.map(({ app }) => app.id);
+    const [intakeRows, preferenceRows] = await Promise.all([
+      rows.length
+        ? this.intakes.findBy({ id: In([...new Set(rows.map(x => x.app.intakeId))]), tenantId: user.tenantId })
+        : Promise.resolve([]),
+      applicantIds.length
+        ? this.programmeOptions.find({
+            where: { tenantId: user.tenantId, applicantId: In(applicantIds) },
+            relations: { programmeOffering: { programme: true } },
+            order: { preferenceOrder: 'ASC' },
+          })
+        : Promise.resolve([]),
+    ]);
     const intakeNames = new Map(intakeRows.map(i => [i.id, i.intakeName]));
+    const preferencesByApplicant = new Map<string, Array<{
+      id: string;
+      preferenceOrder: number;
+      programmeOfferingId: string;
+      programmeId: string | null;
+      programmeCode: string | null;
+      programmeName: string | null;
+    }>>();
+    for (const option of preferenceRows) {
+      const list = preferencesByApplicant.get(option.applicantId) ?? [];
+      list.push({
+        id: option.id,
+        preferenceOrder: option.preferenceOrder,
+        programmeOfferingId: option.programmeOfferingId,
+        programmeId: option.programmeOffering?.programme?.id ?? null,
+        programmeCode: option.programmeOffering?.programme?.code ?? null,
+        programmeName: option.programmeOffering?.programme?.name ?? null,
+      });
+      preferencesByApplicant.set(option.applicantId, list);
+    }
     return {
       items: rows.map(({ app, readiness }) => ({
         applicantId: app.id, applicationId: String(app.applicationId), applicationReference: app.applicationReference,
@@ -56,6 +90,7 @@ export class ApplicationReviewService {
         status: app.applicationStatus, paymentStatus: app.processingFeeStatus, documentsComplete: readiness.documentsComplete,
         approvalAllowed: readiness.approvalAllowed, unmetPreconditions: readiness.unmetPreconditions,
         statusUpdatedAt: app.statusUpdatedAt,
+        programmePreferences: preferencesByApplicant.get(app.id) ?? [],
       })),
       meta: { page: query.page, limit: query.limit, total, totalPages: total === 0 ? 0 : Math.ceil(total / query.limit) },
     };
@@ -140,14 +175,19 @@ export class ApplicationReviewService {
       }));
       return { app: savedApp, previousStatus, unchanged: false };
     });
-    return {
+    const response = {
       applicantId: saved.app.id, applicationReference: saved.app.applicationReference,
       previousStatus: saved.previousStatus, status: saved.app.applicationStatus,
       rejectionReasonCode: saved.app.rejectionReasonCode, rejectionReason: saved.app.rejectionReason,
       statusUpdatedBy: saved.app.statusUpdatedBy ?? user.userId,
       statusUpdatedAt: saved.app.statusUpdatedAt ?? new Date(),
       unchanged: saved.unchanged,
+      admitCard: null as Awaited<ReturnType<EntryTestService['generateAdmitCard']>> | null,
     };
+    if (saved.app.applicationStatus === ApplicationStatus.APPROVED) {
+      response.admitCard = await this.entryTest.generateAdmitCard(user, applicantId);
+    }
+    return response;
   }
 
   async history(user: RequestContext, applicantId: string) {

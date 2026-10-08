@@ -76,7 +76,7 @@ export class SelectionOffersService {
     if (!rawRows.length) throw new BadRequestException('The RESULT worksheet contains no rows');
     if (rawRows.length > 10000) throw new BadRequestException('The workbook exceeds the 10,000 row limit');
 
-    const session = await this.db.query(`SELECT s.id, c.intake_session_id AS "intakeId" FROM test_sessions s JOIN test_centres c ON c.id=s.test_centre_id AND c.tenant_id=s.tenant_id WHERE s.id=$1 AND s.tenant_id=$2 AND s.status IN ('PUBLISHED','CLOSED')`, [testSessionId, ctx.tenantId]);
+    const session = await this.db.query(`SELECT s.id, s.intake_session_id AS "intakeId" FROM test_sessions s WHERE s.id=$1 AND s.tenant_id=$2 AND s.status IN ('PUBLISHED','CLOSED')`, [testSessionId, ctx.tenantId]);
     if (!session[0]) throw new NotFoundException('Published/closed test session not found for tenant');
     const mapped = rawRows.map((raw, index) => {
       const r = this.headers(raw); const ref = String(r.applicationreference ?? '').trim();
@@ -98,7 +98,7 @@ export class SelectionOffersService {
       if (!app[0]) { row.errors.push('APPLICATION_NOT_FOUND_IN_INTAKE'); continue; }
       const eligibility = await this.db.query(`SELECT 1 FROM application_attendance aa WHERE aa.tenant_id=$1 AND aa.applicant_id=$2 AND aa.test_session_id=$3 AND aa.attendance_status='PRESENT' AND aa.identity_verified=TRUE AND aa.result_awaited_at IS NOT NULL`, [ctx.tenantId,app[0].id,testSessionId]);
       if (!eligibility.length) row.errors.push('VERIFIED_RESULT_AWAITED_ATTENDANCE_REQUIRED');
-      const option = await this.db.query(`SELECT 1 FROM application_programme_options apo JOIN programme_offerings po ON po.id=apo.programme_offering_id JOIN test_session_programmes tsp ON tsp.test_session_id=$2 AND tsp.programme_id=po.programme_id AND tsp.tenant_id=po.tenant_id WHERE apo.tenant_id=$1 AND apo.applicant_id=$3 AND po.intake_id=$4 AND po.offering_status='PUBLISHED' LIMIT 1`, [ctx.tenantId,testSessionId,app[0].id,session[0].intakeId]);
+      const option = await this.db.query(`SELECT 1 FROM application_programme_options apo JOIN programme_offerings po ON po.id=apo.programme_offering_id JOIN test_session_offerings tso ON tso.test_session_id=$2 AND tso.programme_offering_id=po.id AND tso.tenant_id=po.tenant_id WHERE apo.tenant_id=$1 AND apo.applicant_id=$3 AND po.intake_id=$4 AND po.offering_status='PUBLISHED' LIMIT 1`, [ctx.tenantId,testSessionId,app[0].id,session[0].intakeId]);
       if (!option.length) row.errors.push('NO_SELECTED_OFFERING_FOR_TEST_SESSION');
       row['applicationRecordId' as keyof typeof row] = app[0].id as never;
     }
@@ -130,8 +130,7 @@ export class SelectionOffersService {
       await this.db.query(
         `SELECT i.id, i.merit_generation_mode
          FROM intakes i
-         JOIN test_centres c ON c.intake_session_id = i.id
-         JOIN test_sessions s ON s.test_centre_id = c.id
+         JOIN test_sessions s ON s.intake_session_id = i.id
          WHERE s.tenant_id = $1 AND s.id = $2
          LIMIT 1`,
         [ctx.tenantId, testSessionId],
@@ -149,11 +148,11 @@ export class SelectionOffersService {
       const offerings = await this.db.query(
         `SELECT DISTINCT po.id
          FROM programme_offerings po
-         JOIN test_session_programmes tsp
-           ON tsp.programme_id = po.programme_id AND tsp.tenant_id = po.tenant_id
+         JOIN test_session_offerings tso
+           ON tso.programme_offering_id = po.id AND tso.tenant_id = po.tenant_id
          WHERE po.tenant_id = $1
            AND po.intake_id = $2
-           AND tsp.test_session_id = $3
+           AND tso.test_session_id = $3
            AND po.offering_status = 'PUBLISHED'
            AND po.seat_capacity IS NOT NULL
            AND po.seat_capacity > 0`,
@@ -184,7 +183,43 @@ export class SelectionOffersService {
       autoMerit,
     };
   }
-  async applicantResults(ctx:RequestContext,userId:string) { const rows=await this.db.query(`SELECT r.id,r.application_reference AS "applicationReference",r.test_session_id AS "testSessionId",r.test_score AS "testScore",r.total_marks AS "totalMarks",r.percentage,r.result_status AS "resultStatus",r.published_at AS "publishedAt" FROM application_entry_test_results r JOIN applications a ON a.id=r.application_record_id WHERE r.tenant_id=$1 AND a.iam_user_id=$2 AND r.is_current AND r.published_at IS NOT NULL ORDER BY r.published_at DESC`,[ctx.tenantId,userId]); return rows; }
+  async applicantResults(ctx:RequestContext,userId:string) {
+    const rows = await this.db.query(
+      `SELECT r.id,
+              r.application_reference AS "applicationReference",
+              r.test_session_id AS "testSessionId",
+              r.test_score AS "testScore",
+              r.total_marks AS "totalMarks",
+              r.percentage,
+              r.result_status AS "resultStatus",
+              r.published_at AS "publishedAt",
+              s.test_date AS "testDate",
+              s.reporting_time AS "reportingTime",
+              s.test_time AS "testTime",
+              s.room AS "room",
+              c.centre_name AS "centreName",
+              c.location AS "centreLocation",
+              CASE
+                WHEN c.centre_name IS NULL THEN NULL
+                ELSE CONCAT(c.centre_name, ', ', c.location)
+              END AS "testVenue"
+       FROM application_entry_test_results r
+       JOIN applications a ON a.id = r.application_record_id
+       LEFT JOIN test_sessions s
+         ON s.id = r.test_session_id
+        AND s.tenant_id = r.tenant_id
+       LEFT JOIN test_centres c
+         ON c.id = s.test_centre_id
+        AND c.tenant_id = s.tenant_id
+       WHERE r.tenant_id = $1
+         AND a.iam_user_id = $2
+         AND r.is_current
+         AND r.published_at IS NOT NULL
+       ORDER BY r.published_at DESC`,
+      [ctx.tenantId, userId],
+    );
+    return rows;
+  }
   async getResult(ctx:RequestContext,id:string){this.admin(ctx);const r=await this.db.query(`SELECT * FROM application_entry_test_results WHERE tenant_id=$1 AND id=$2`,[ctx.tenantId,id]);if(!r[0])throw new NotFoundException('Result not found');return r[0];}
 
   async generateMerit(
@@ -201,12 +236,18 @@ export class SelectionOffersService {
     return this.db.transaction(async (m) => {
       const off = (
         await m.query(
-          `SELECT po.*, c.intake_session_id
+          `SELECT po.*, s.intake_session_id
            FROM programme_offerings po
-           JOIN test_centres c ON c.intake_session_id = po.intake_id AND c.tenant_id = po.tenant_id
-           JOIN test_sessions s ON s.test_centre_id = c.id AND s.id = $2
+           JOIN test_session_offerings tso
+             ON tso.programme_offering_id = po.id
+            AND tso.tenant_id = po.tenant_id
+            AND tso.test_session_id = $2
+           JOIN test_sessions s
+             ON s.id = tso.test_session_id
+            AND s.tenant_id = tso.tenant_id
            WHERE po.tenant_id = $1 AND po.id = $3
              AND po.offering_status = 'PUBLISHED'
+             AND po.intake_id = s.intake_session_id
              AND s.status IN ('PUBLISHED', 'CLOSED')
            LIMIT 1`,
           [ctx.tenantId, testSessionId, offeringId],
@@ -283,10 +324,10 @@ export class SelectionOffersService {
           AND apo.tenant_id = a.tenant_id
           AND apo.programme_offering_id = $3
          JOIN programme_offerings po ON po.id = apo.programme_offering_id
-         JOIN test_session_programmes tsp
-           ON tsp.tenant_id = po.tenant_id
-          AND tsp.test_session_id = r.test_session_id
-          AND tsp.programme_id = po.programme_id
+         JOIN test_session_offerings tso
+           ON tso.tenant_id = po.tenant_id
+          AND tso.test_session_id = r.test_session_id
+          AND tso.programme_offering_id = po.id
          WHERE r.tenant_id = $1
            AND r.test_session_id = $2
            AND r.is_current
@@ -463,10 +504,10 @@ export class SelectionOffersService {
          FROM application_programme_options apo
          JOIN applications a ON a.id = apo.applicant_id
          JOIN programme_offerings po ON po.id = apo.programme_offering_id
-         JOIN test_session_programmes tsp
-           ON tsp.tenant_id = po.tenant_id
-          AND tsp.programme_id = po.programme_id
-          AND tsp.test_session_id = $3
+         JOIN test_session_offerings tso
+           ON tso.tenant_id = po.tenant_id
+          AND tso.programme_offering_id = po.id
+          AND tso.test_session_id = $3
          JOIN programme_merit_list_items mi
            ON mi.application_record_id = a.id AND mi.tenant_id = a.tenant_id
          JOIN programme_merit_lists ml
@@ -650,33 +691,65 @@ export class SelectionOffersService {
   async authorizeOffer(ctx:RequestContext,applicationId:string,dto:any) { this.admin(ctx); return this.db.transaction(async m=>{const app=(await m.query(`SELECT a.*,i.offer_payment_period_days FROM applications a JOIN intakes i ON i.id=a.intake_id WHERE a.tenant_id=$1 AND a.id=$2 FOR UPDATE`,[ctx.tenantId,applicationId]))[0]; if(!app)throw new NotFoundException('Application not found'); if(app.selection_status!=='SELECTED'||!app.selected_programme_offering_id)throw new UnprocessableEntityException('Only selected applicants can receive an offer'); const deadline=new Date(Date.now()+Number(app.offer_payment_period_days)*86400000); const r=await m.query(`INSERT INTO admission_offers(tenant_id,application_record_id,programme_offering_id,offer_type,offer_conditions,acceptance_deadline,fee_payment_instructions,offer_letter_document,authorized_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,[ctx.tenantId,app.id,app.selected_programme_offering_id,dto.offerType,dto.offerConditions??null,deadline,dto.feePaymentInstructions??null,dto.offerLetterDocument,ctx.userId]); return r[0];}); }
   async publishOffer(ctx:RequestContext,applicationId:string) {
     this.admin(ctx);
-    const touched=await this.db.query(
-      `UPDATE admission_offers
-       SET status='PUBLISHED', published_at=now(), offer_issue_date=now(), updated_at=now()
-       WHERE tenant_id=$1 AND application_record_id=$2 AND status='AUTHORIZED'`,
-      [ctx.tenantId, applicationId],
-    );
-    const offer=(await this.db.query(
-      `SELECT * FROM admission_offers
-       WHERE tenant_id=$1 AND application_record_id=$2 AND status='PUBLISHED'
-       ORDER BY published_at DESC NULLS LAST, created_at DESC
-       LIMIT 1`,
-      [ctx.tenantId, applicationId],
-    ))[0];
-    if(!offer){
-      throw new NotFoundException(
-        `Authorized offer not found (updateResult=${JSON.stringify(touched)})`,
-      );
+    const authorized = (
+      await this.db.query(
+        `SELECT * FROM admission_offers
+         WHERE tenant_id=$1 AND application_record_id=$2 AND status='AUTHORIZED'
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [ctx.tenantId, applicationId],
+      )
+    )[0];
+    if (!authorized) {
+      throw new NotFoundException('Authorized offer not found');
     }
+    // Generate challan while still AUTHORIZED so a fee-config failure cannot
+    // leave a PUBLISHED offer without a payable challan.
     const challan = await this.offerFees.generateForOffer(ctx.tenantId, {
-      id: offer.id,
-      application_record_id: offer.application_record_id,
-      programme_offering_id: offer.programme_offering_id,
-      acceptance_deadline: offer.acceptance_deadline,
+      id: authorized.id,
+      application_record_id: authorized.application_record_id,
+      programme_offering_id: authorized.programme_offering_id,
+      acceptance_deadline: authorized.acceptance_deadline,
     });
+    const offer = (
+      await this.db.query(
+        `UPDATE admission_offers
+         SET status='PUBLISHED', published_at=now(), offer_issue_date=now(), updated_at=now()
+         WHERE tenant_id=$1 AND id=$2 AND status='AUTHORIZED'
+         RETURNING *`,
+        [ctx.tenantId, authorized.id],
+      )
+    )[0];
+    if (!offer) {
+      throw new ConflictException('Offer could not be published (status changed)');
+    }
     return { ...offer, feeChallan: challan };
   }
   async getOffer(ctx:RequestContext,applicationId:string) { const r=await this.db.query(`SELECT * FROM admission_offers WHERE tenant_id=$1 AND application_record_id=$2 AND status IN ('PUBLISHED','ACCEPTED','DECLINED','EXPIRED') ORDER BY created_at DESC LIMIT 1`,[ctx.tenantId,applicationId]); if(!r[0])throw new NotFoundException('Published offer not found');return r[0]; }
-  async applicantOffer(ctx:RequestContext,userId:string) { const r=await this.db.query(`SELECT o.* FROM admission_offers o JOIN applications a ON a.id=o.application_record_id WHERE o.tenant_id=$1 AND a.iam_user_id=$2 AND o.status IN ('PUBLISHED','ACCEPTED','DECLINED','EXPIRED') ORDER BY o.created_at DESC LIMIT 1`,[ctx.tenantId,userId]); if(!r[0])throw new NotFoundException('Published offer not found');return r[0]; }
+  async applicantOffer(ctx:RequestContext,userId:string) {
+    const r = await this.db.query(
+      `SELECT o.*
+       FROM admission_offers o
+       JOIN applications a ON a.id = o.application_record_id
+       WHERE o.tenant_id = $1
+         AND a.iam_user_id = $2
+         AND o.status IN ('PUBLISHED','ACCEPTED','DECLINED','EXPIRED')
+       ORDER BY o.created_at DESC
+       LIMIT 1`,
+      [ctx.tenantId, userId],
+    );
+    const offer = r[0];
+    if (!offer) throw new NotFoundException('Published offer not found');
+    const bundle = await this.offerFees.getOfferFeeBundle(
+      ctx.tenantId,
+      offer.application_record_id,
+      { ensureIfPublished: true },
+    );
+    return {
+      ...offer,
+      feeChallan: bundle.challan,
+      currentEvidence: bundle.currentEvidence,
+    };
+  }
   async receiveOfferEvent(ctx:RequestContext,event:any) { const client=await this.db.query(`SELECT current_setting('app.service_client',true) AS client`); void client; const status=event.responseStatus; return this.db.transaction(async m=>{const old=(await m.query(`SELECT * FROM admission_offers WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,[ctx.tenantId,event.offerId]))[0]; if(!old)throw new NotFoundException('Offer not found'); const existed=await m.query(`SELECT event_id FROM admission_offer_events WHERE event_id=$1`,[event.eventId]); if(existed.length)return {offerId:old.id,status:old.status,idempotent:true}; if(old.application_record_id!==event.applicationRecordId)throw new BadRequestException('Offer/application mismatch'); if(old.status!== 'PUBLISHED')throw new ConflictException('Offer response can only transition from PUBLISHED'); await m.query(`INSERT INTO admission_offer_events(event_id,tenant_id,offer_id,event_version,event_type,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)`,[event.eventId,ctx.tenantId,event.offerId,event.eventVersion,event.eventType,JSON.stringify(event),event.occurredAt]); const updated=(await m.query(`UPDATE admission_offers SET status=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='PUBLISHED' RETURNING *`,[ctx.tenantId,event.offerId,status]))[0]; return updated; }); }
 }

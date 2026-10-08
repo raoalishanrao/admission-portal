@@ -55,8 +55,7 @@ const crit = await c.query(
 console.log('CRITERIA', crit.rows);
 const sessions = await c.query(
   `select s.id, s.status from test_sessions s
-   join test_centres c on c.id=s.test_centre_id
-   where c.intake_session_id=$1 and s.status='PUBLISHED'`,
+   where s.intake_session_id=$1 and s.status='PUBLISHED'`,
   [intake],
 );
 console.log('SESSIONS', sessions.rows);

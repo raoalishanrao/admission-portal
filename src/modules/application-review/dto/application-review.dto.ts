@@ -44,6 +44,15 @@ export class ApplicationReadinessDto {
   @ApiProperty({ type: [String] }) unmetPreconditions!: string[];
 }
 
+export class ApplicationListPreferenceDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() preferenceOrder!: number;
+  @ApiProperty() programmeOfferingId!: string;
+  @ApiPropertyOptional({ nullable: true }) programmeId!: string | null;
+  @ApiPropertyOptional({ nullable: true }) programmeCode!: string | null;
+  @ApiPropertyOptional({ nullable: true }) programmeName!: string | null;
+}
+
 export class ApplicationQueueItemDto {
   @ApiProperty() applicantId!: string;
   @ApiProperty() applicationId!: string;
@@ -57,6 +66,7 @@ export class ApplicationQueueItemDto {
   @ApiProperty() approvalAllowed!: boolean;
   @ApiProperty({ type: [String] }) unmetPreconditions!: string[];
   @ApiPropertyOptional({ nullable: true }) statusUpdatedAt!: Date | null;
+  @ApiProperty({ type: [ApplicationListPreferenceDto] }) programmePreferences!: ApplicationListPreferenceDto[];
 }
 
 export class ApplicationReviewListDto {
@@ -88,6 +98,8 @@ export class ApplicationDecisionResponseDto {
   @ApiProperty() statusUpdatedBy!: string;
   @ApiProperty() statusUpdatedAt!: Date;
   @ApiProperty() unchanged!: boolean;
+  @ApiPropertyOptional({ nullable: true, description: 'Admit card snapshot generated automatically on APPROVED' })
+  admitCard?: Record<string, unknown> | null;
 }
 
 export class ApplicationStatusAuditDto {

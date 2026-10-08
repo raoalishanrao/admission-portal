@@ -528,6 +528,8 @@ export class CreateContactsDto {
   @ApiProperty({
     type: [ContactFieldsDto],
     example: CONTACTS_REQUEST_EXAMPLE.contacts,
+    description:
+      'You may create contacts incrementally. Before completing the profile step, the application must include at least two contacts: one PARENT or GUARDIAN, and one EMERGENCY (blood relation other than FATHER/GUARDIAN).',
   })
   @IsArray()
   @ArrayMinSize(1)

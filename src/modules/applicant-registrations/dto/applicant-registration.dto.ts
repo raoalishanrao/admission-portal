@@ -190,3 +190,32 @@ export class SetApplicantPasswordResponseDto {
   })
   applicantId?: string;
 }
+
+export class ApplicantOwnedApplicationDto {
+  @ApiProperty({ description: 'Applicant ID (applications.id)' })
+  applicantId!: string;
+
+  @ApiProperty({ example: 'NUKTA-1000001' })
+  applicationReference!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  intakeSessionId!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  intakeName!: string | null;
+
+  @ApiProperty({ example: 'SUBMITTED' })
+  applicationStatus!: string;
+
+  @ApiProperty({ example: 100 })
+  overallCompletion!: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  submissionDate!: Date | null;
+
+  @ApiProperty({ example: 'UNPAID' })
+  processingFeeStatus!: string;
+
+  @ApiProperty()
+  updatedAt!: Date;
+}

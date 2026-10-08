@@ -10,11 +10,10 @@ import {
   ApplicationEntryTestOutcomeEntity,
   ApplicationProgrammeOptionEntity,
   IntakeEntity,
-  ProgrammeEntity,
   ProgrammeOfferingEntity,
   TestCentreEntity,
   TestSessionEntity,
-  TestSessionProgrammeEntity,
+  TestSessionOfferingEntity,
 } from '../../database/entities/index.js';
 import { StorageModule } from '../../integrations/storage/storage.module.js';
 import {
@@ -29,7 +28,7 @@ import { EntryTestService } from './entry-test.service.js';
     TypeOrmModule.forFeature([
       TestCentreEntity,
       TestSessionEntity,
-      TestSessionProgrammeEntity,
+      TestSessionOfferingEntity,
       ApplicationAdmitCardEntity,
       ApplicationAttendanceEntity,
       ApplicationAttendanceScanEntity,
@@ -40,7 +39,6 @@ import { EntryTestService } from './entry-test.service.js';
       ApplicationContactEntity,
       IntakeEntity,
       ProgrammeOfferingEntity,
-      ProgrammeEntity,
     ]),
   ],
   controllers: [EntryTestAdminController, ApplicantAdmitCardController],

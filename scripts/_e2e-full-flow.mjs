@@ -154,31 +154,20 @@ log('Set seat_capacity=2 on primary offering', true, primaryOfferingId);
 
 const session = (
   await c.query(
-    `select s.id, c.id as centre_id from test_sessions s
-     join test_centres c on c.id=s.test_centre_id
-     where c.intake_session_id=$1 and s.status='PUBLISHED' limit 1`,
+    `select s.id, s.test_centre_id as centre_id from test_sessions s
+     where s.intake_session_id=$1 and s.status='PUBLISHED' limit 1`,
     [app.intake_id],
   )
 ).rows[0];
 if (!session) throw new Error('No published test session for intake');
 await c.query(
-  `insert into test_session_programmes (tenant_id, test_session_id, programme_id)
-   values ($1,$2,$3) on conflict do nothing`,
-  [tenantId, session.id, programmeId],
+  `insert into test_session_offerings (tenant_id, test_session_id, programme_offering_id)
+   select $1,$2,$3 where not exists (
+     select 1 from test_session_offerings where test_session_id=$2 and programme_offering_id=$3
+   )`,
+  [tenantId, session.id, primaryOfferingId],
 );
-// unique constraint may differ - check
-try {
-  await c.query(
-    `insert into test_session_programmes (tenant_id, test_session_id, programme_id)
-     select $1,$2,$3 where not exists (
-       select 1 from test_session_programmes where test_session_id=$2 and programme_id=$3
-     )`,
-    [tenantId, session.id, programmeId],
-  );
-} catch {
-  /* ignore */
-}
-log('Test session linked to programme', true, session.id);
+log('Test session linked to offering', true, session.id);
 
 const adminToken = mint(
   '00000000-0000-4000-8000-0000000000aa',

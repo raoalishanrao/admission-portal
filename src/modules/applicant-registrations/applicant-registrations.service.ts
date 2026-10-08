@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import {
   AccountStatus,
   ApplicationStatus,
@@ -23,7 +23,9 @@ import {
   EMAIL_SENDER,
   type EmailSender,
 } from '../../integrations/email/email-sender.interface.js';
+import type { AuthUser } from '../../common/decorators/current-user.decorator.js';
 import type {
+  ApplicantOwnedApplicationDto,
   RegisterApplicantDto,
   RegistrationResponseDto,
   SetApplicantPasswordDto,
@@ -212,6 +214,58 @@ export class ApplicantRegistrationsService {
       verified: true,
       applicantId,
     };
+  }
+
+  async listMine(user: AuthUser): Promise<ApplicantOwnedApplicationDto[]> {
+    const byUser = await this.applicationsRepo.find({
+      where: { tenantId: user.tenantId, iamUserId: user.userId },
+      order: { updatedAt: 'DESC' },
+    });
+
+    // Recover apps registered to this email before iam_user_id was bound.
+    const email = normalizeEmail(user.email);
+    const byEmail = email
+      ? await this.applicationsRepo.find({
+          where: { tenantId: user.tenantId, normalizedEmail: email },
+          order: { updatedAt: 'DESC' },
+        })
+      : [];
+
+    const merged = new Map<string, ApplicationEntity>();
+    for (const row of [...byUser, ...byEmail]) {
+      if (row.iamUserId && row.iamUserId !== user.userId) continue;
+      merged.set(row.id, row);
+    }
+
+    const rows = [...merged.values()].sort(
+      (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
+    );
+    if (!rows.length) return [];
+
+    for (const row of rows) {
+      if (!row.iamUserId) {
+        row.iamUserId = user.userId;
+        await this.applicationsRepo.save(row);
+      }
+    }
+
+    const intakeIds = [...new Set(rows.map((row) => row.intakeId))];
+    const intakes = await this.intakesRepo.find({
+      where: { tenantId: user.tenantId, id: In(intakeIds) },
+    });
+    const intakeNames = new Map(intakes.map((intake) => [intake.id, intake.intakeName]));
+
+    return rows.map((row) => ({
+      applicantId: String(row.id),
+      applicationReference: row.applicationReference,
+      intakeSessionId: row.intakeId,
+      intakeName: intakeNames.get(row.intakeId) ?? null,
+      applicationStatus: row.applicationStatus,
+      overallCompletion: row.overallCompletion,
+      submissionDate: row.submissionDate,
+      processingFeeStatus: row.processingFeeStatus,
+      updatedAt: row.updatedAt,
+    }));
   }
 
   private async assertPublishedOpenIntake(

@@ -137,10 +137,11 @@ export class ApplicantApplicationsController {
   @Post('academic')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Create academic information',
+    summary: 'Create or append academic information',
     description:
-      'One record per degreeType code (MATRIC, FSC, …). If programmes are already selected, ' +
-      'mandatory academic levels for those programme degree levels must be present.',
+      'One record per degreeType code (MATRIC, FSC, …). First call creates the academic step; ' +
+      'later calls append additional unique degree types. Use PUT to edit existing rows. ' +
+      'If programmes are already selected, mandatory academic levels must be present after save.',
   })
   @ApiWrappedCreatedResponse(AcademicStepResponseDto, 'Academic records created')
   createAcademic(
@@ -270,7 +271,7 @@ export class ApplicantApplicationsController {
     summary: 'Create programme selection and preferences',
     description:
       'Preference 1 required. Max preferences from APPLICATION_MAX_PROGRAMME_PREFERENCES (default 2, min 2). ' +
-      'If academic step is already saved, selected programmes must have their required academic degree_type codes present.',
+      'Required academic levels are validated on the Academic step and at submit, not here.',
   })
   @ApiWrappedCreatedResponse(ProgrammeStepResponseDto, 'Programme created')
   createProgramme(
@@ -285,7 +286,7 @@ export class ApplicantApplicationsController {
   @ApiOperation({
     summary: 'Update programme selection and preferences',
     description:
-      'If academic step is already saved, selected programmes must have their required academic degree_type codes present.',
+      'Required academic levels are validated on the Academic step and at submit, not here.',
   })
   @ApiWrappedOkResponse(ProgrammeStepResponseDto, 'Programme updated')
   updateProgramme(
@@ -417,13 +418,13 @@ export class ApplicantApplicationsController {
   @ApiOperation({
     summary: 'Create parent/guardian/emergency contacts',
     description:
-      'At least one EMERGENCY contact is required (blood relation other than FATHER/GUARDIAN).',
+      'Create one or more contacts. Profile completion requires both a PARENT/GUARDIAN and an EMERGENCY contact (blood relation other than FATHER/GUARDIAN). Example body shows the required pair.',
   })
   @ApiBody({
     type: CreateContactsDto,
     examples: {
       parentAndEmergency: {
-        summary: 'Parent + emergency (required)',
+        summary: 'Parent + emergency (required before profile complete)',
         value: {
           contacts: [
             {
