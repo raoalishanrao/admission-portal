@@ -36,6 +36,23 @@ export class ApplicationReviewService {
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
   ) {}
 
+  async summary(user: RequestContext) {
+    this.assertStaff(user);
+    const assessments = await this.assessQueue(user.tenantId);
+    const count = (queue: ApplicationReviewQueue) =>
+      assessments.filter(({ app, readiness }) => this.matchesQueue(app, readiness, queue)).length;
+    return {
+      totalSubmitted: count(ApplicationReviewQueue.SUBMITTED),
+      paidProcessingFee: count(ApplicationReviewQueue.PAID_PROCESSING_FEE),
+      unpaidProcessingFee: count(ApplicationReviewQueue.UNPAID_PROCESSING_FEE),
+      missingDocuments: count(ApplicationReviewQueue.MISSING_DOCUMENTS),
+      missingFeeAndDocuments: count(ApplicationReviewQueue.MISSING_FEE_AND_DOCUMENTS),
+      missingFee: count(ApplicationReviewQueue.MISSING_FEE),
+      approved: count(ApplicationReviewQueue.APPROVED),
+      rejected: count(ApplicationReviewQueue.REJECTED),
+    };
+  }
+
   async list(user: RequestContext, query: ApplicationReviewQueryDto) {
     this.assertStaff(user);
     const candidates = await this.applications.find({
@@ -193,6 +210,27 @@ export class ApplicationReviewService {
   async history(user: RequestContext, applicantId: string) {
     this.assertStaff(user); await this.getApplication(user.tenantId, applicantId);
     return this.statusAudits.find({ where: { tenantId: user.tenantId, applicantId }, order: { actedAt: 'DESC' } });
+  }
+
+  private async assessQueue(tenantId: string) {
+    const candidates = await this.applications.find({
+      where: {
+        tenantId,
+        applicationStatus: In([
+          ApplicationStatus.COMPLETE,
+          ApplicationStatus.SUBMITTED,
+          ApplicationStatus.APPROVED,
+          ApplicationStatus.REJECTED,
+        ]),
+      },
+      order: { submissionDate: 'DESC', createdAt: 'DESC' },
+    });
+    return Promise.all(
+      candidates.map(async (app) => ({
+        app,
+        readiness: await this.readiness(tenantId, app),
+      })),
+    );
   }
 
   private async readiness(tenantId: string, app: ApplicationEntity) {

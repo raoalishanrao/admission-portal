@@ -4,14 +4,14 @@ import { ApiStandardErrorResponses, ApiTenantHeaders, ApiWrappedOkArrayResponse,
 import { ReqContext, type RequestContext } from '../../common/decorators/request-context.decorator.js';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 import { ParseUuidPipe } from '../../common/pipes/parse-uuid.pipe.js';
-import { ApplicationDecisionDto, ApplicationDecisionResponseDto, ApplicationListPreferenceDto, ApplicationQueueItemDto, ApplicationReviewListDto, ApplicationReviewQueryDto, ApplicationReviewResponseDto, ApplicationStatusAuditDto } from './dto/application-review.dto.js';
+import { ApplicationDecisionDto, ApplicationDecisionResponseDto, ApplicationListPreferenceDto, ApplicationQueueItemDto, ApplicationReviewListDto, ApplicationReviewQueryDto, ApplicationReviewResponseDto, ApplicationReviewSummaryDto, ApplicationStatusAuditDto } from './dto/application-review.dto.js';
 import { ApplicationReviewService } from './application-review.service.js';
 
 @ApiTags('Application Review and Decision')
 @ApiBearerAuth('bearer')
 @ApiTenantHeaders()
 @ApiStandardErrorResponses()
-@ApiExtraModels(ApiErrorResponseDto, ApplicationReviewQueryDto, ApplicationListPreferenceDto, ApplicationQueueItemDto, ApplicationReviewListDto, ApplicationReviewResponseDto, ApplicationDecisionDto, ApplicationDecisionResponseDto, ApplicationStatusAuditDto)
+@ApiExtraModels(ApiErrorResponseDto, ApplicationReviewQueryDto, ApplicationListPreferenceDto, ApplicationQueueItemDto, ApplicationReviewListDto, ApplicationReviewSummaryDto, ApplicationReviewResponseDto, ApplicationDecisionDto, ApplicationDecisionResponseDto, ApplicationStatusAuditDto)
 @Controller('admissions/applications')
 export class ApplicationReviewController {
   constructor(private readonly service: ApplicationReviewService) {}
@@ -20,6 +20,17 @@ export class ApplicationReviewController {
   @ApiOperation({ summary: 'List the admissions application review queue', description: 'Search and page submitted, approved, and rejected applications. Queue segments include unpaid fee and document exceptions.' })
   @ApiWrappedOkResponse(ApplicationReviewListDto)
   list(@ReqContext() ctx: RequestContext, @Query() query: ApplicationReviewQueryDto) { return this.service.list(ctx, query); }
+
+  @Get('summary')
+  @ApiOperation({
+    summary: 'Get application review dashboard card counts',
+    description:
+      'Returns totals for Total Submitted, Paid/Unpaid Processing Fee, Missing Documents, and Missing Fee & Documents. Use GET /admissions/applications?queue=… to list each segment.',
+  })
+  @ApiWrappedOkResponse(ApplicationReviewSummaryDto)
+  summary(@ReqContext() ctx: RequestContext) {
+    return this.service.summary(ctx);
+  }
 
   @Get(':applicantId/status-history')
   @ApiParam({ name: 'applicantId', format: 'uuid' })

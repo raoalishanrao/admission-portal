@@ -74,6 +74,33 @@ export class ApplicationReviewListDto {
   @ApiProperty({ type: 'object', additionalProperties: true }) meta!: { page: number; limit: number; total: number; totalPages: number };
 }
 
+/** Dashboard card counts for the admissions application review queue. */
+export class ApplicationReviewSummaryDto {
+  @ApiProperty({ example: 5, description: 'Submitted/complete applications awaiting or under review' })
+  totalSubmitted!: number;
+
+  @ApiProperty({ example: 2, description: 'Complete applications with verified processing fee (ready for review)' })
+  paidProcessingFee!: number;
+
+  @ApiProperty({ example: 3, description: 'Complete applications still waiting on verified processing fee' })
+  unpaidProcessingFee!: number;
+
+  @ApiProperty({ example: 0, description: 'Paid but incomplete verified document set' })
+  missingDocuments!: number;
+
+  @ApiProperty({ example: 1, description: 'Unpaid processing fee and incomplete document set' })
+  missingFeeAndDocuments!: number;
+
+  @ApiProperty({ example: 2, description: 'Unpaid fee but documents complete' })
+  missingFee!: number;
+
+  @ApiProperty({ example: 0 })
+  approved!: number;
+
+  @ApiProperty({ example: 0 })
+  rejected!: number;
+}
+
 export class ApplicationReviewResponseDto {
   @ApiProperty({ type: 'object', additionalProperties: true }) application!: Record<string, unknown>;
   @ApiProperty({ type: 'object', additionalProperties: true }) intake!: Record<string, unknown>;
