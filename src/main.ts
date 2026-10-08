@@ -17,6 +17,8 @@ async function bootstrap() {
     'http://localhost:5174',
     'http://127.0.0.1:5173',
     'http://127.0.0.1:5174',
+    // Production admin portal (Vercel)
+    'https://taleem-admin-admission.vercel.app',
   ];
   const envCorsOrigins = (process.env.CORS_ORIGINS ?? '')
     .split(',')
@@ -32,26 +34,27 @@ async function bootstrap() {
         return;
       }
       if (allowedOrigins.has(origin)) {
-        callback(null, true);
+        callback(null, origin);
         return;
       }
       try {
         const host = new URL(origin).hostname;
-        // Allow local Vite and ngrok tunnels used for phone/QR testing.
+        // Local Vite, ngrok tunnels, and Vercel preview/production frontends.
         if (
           host === 'localhost' ||
           host === '127.0.0.1' ||
           host.endsWith('.ngrok-free.app') ||
           host.endsWith('.ngrok.app') ||
-          host.endsWith('.ngrok.io')
+          host.endsWith('.ngrok.io') ||
+          host.endsWith('.vercel.app')
         ) {
-          callback(null, true);
+          callback(null, origin);
           return;
         }
       } catch {
         // fall through
       }
-      callback(new Error(`CORS blocked for origin: ${origin}`), false);
+      callback(null, false);
     },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
