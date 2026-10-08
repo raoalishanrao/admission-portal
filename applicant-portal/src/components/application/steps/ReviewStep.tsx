@@ -17,10 +17,12 @@ import { degreeLevelLabel } from '@/lib/admissions-display'
 import {
   ADDRESS_TYPE_OPTIONS,
   CONTACT_TYPE_OPTIONS,
-  DEGREE_TYPE_OPTIONS,
   GENDER_OPTIONS,
   MARITAL_STATUS_OPTIONS,
   REFERRAL_OPTIONS,
+  academicRecordTitle,
+  domicileProvinceLabel,
+  nationalityLabel,
   qualificationLevelLabel,
 } from '@/lib/application-steps'
 import type {
@@ -142,6 +144,13 @@ export function ReviewStep({ applicantId, applicationReference, onBack, onSubmit
   }, [applicantId])
 
   async function handleSubmit() {
+    if (
+      !profile?.profilePhotographDownloadUrl &&
+      !profile?.profilePhotograph
+    ) {
+      setError('Profile photograph is required. Go back to Personal Information to upload one.')
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
@@ -189,13 +198,21 @@ export function ReviewStep({ applicantId, applicationReference, onBack, onSubmit
           {profile ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-start gap-4">
-                {profile.profilePhotographDownloadUrl ? (
+                {profile.profilePhotographDownloadUrl || profile.profilePhotograph ? (
                   <img
-                    src={profile.profilePhotographDownloadUrl}
+                    src={
+                      profile.profilePhotographDownloadUrl ||
+                      profile.profilePhotograph ||
+                      undefined
+                    }
                     alt={profile.applicantName}
-                    className="h-20 w-20 rounded-lg object-cover"
+                    className="h-24 w-24 rounded-xl border border-[#e4e9f4] object-cover"
                   />
-                ) : null}
+                ) : (
+                  <div className="grid h-24 w-24 place-items-center rounded-xl border border-dashed border-[#fecaca] bg-[#fef2f2] px-2 text-center text-[11px] font-medium text-[#b91c1c]">
+                    Photo missing
+                  </div>
+                )}
                 <div className="grid flex-1 gap-x-6 gap-y-2 sm:grid-cols-2">
                   <Field label="Full name" value={profile.applicantName} />
                   <Field label="Gender" value={optionLabel(GENDER_OPTIONS, profile.gender)} />
@@ -206,9 +223,15 @@ export function ReviewStep({ applicantId, applicationReference, onBack, onSubmit
                   <Field label="Date of birth" value={formatDate(profile.dateOfBirth)} />
                   <Field label="Mobile" value={profile.mobileNumber} />
                   <Field label="Telephone" value={profile.telephone} />
-                  <Field label="Primary nationality" value={profile.primaryNationalityId} />
-                  <Field label="Secondary nationality" value={profile.secondaryNationalityId} />
-                  <Field label="Domicile" value={profile.domicileId} />
+                  <Field
+                    label="Primary nationality"
+                    value={nationalityLabel(profile.primaryNationalityId)}
+                  />
+                  <Field
+                    label="Secondary nationality"
+                    value={nationalityLabel(profile.secondaryNationalityId)}
+                  />
+                  <Field label="Domicile" value={domicileProvinceLabel(profile.domicileId)} />
                   <Field
                     label="Disability declared"
                     value={profile.disabilityDeclared ? 'Yes' : 'No'}
@@ -293,8 +316,7 @@ export function ReviewStep({ applicantId, applicationReference, onBack, onSubmit
               {records.map(record => (
                 <div key={record.id} className="rounded-lg bg-[#f8faff] px-3 py-3">
                   <p className="text-sm font-semibold text-[#071759]">
-                    {optionLabel(DEGREE_TYPE_OPTIONS, record.degreeType)}
-                    {record.qualificationName ? ` · ${record.qualificationName}` : ''}
+                    {academicRecordTitle(record.degreeType, record.qualificationName)}
                   </p>
                   <div className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
                     <Field label="Board / Institution" value={record.boardOrInstitution} />

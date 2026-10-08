@@ -18,9 +18,17 @@ import {
 import { normalizeMobileNumber } from '@/lib/admissions-display'
 import {
   ADDRESS_TYPE_OPTIONS,
+  citiesForProvince,
   CONTACT_TYPE_OPTIONS,
+  COUNTRY_OPTIONS,
+  DOMICILE_PROVINCE_OPTIONS,
+  EMERGENCY_RELATIONSHIP_OPTIONS,
   GENDER_OPTIONS,
   MARITAL_STATUS_OPTIONS,
+  NATIONALITY_OPTIONS,
+  domicileProvinceLabel,
+  normalizeDomicileProvinceId,
+  PARENT_GUARDIAN_RELATIONSHIP_OPTIONS,
   REFERRAL_OPTIONS,
 } from '@/lib/application-steps'
 import type {
@@ -51,18 +59,20 @@ function emptyAddress(): AddressDraft {
     addressLine2: '',
     countryId: 'PK',
     provinceId: 'PK-PB',
-    cityId: 'PK-PB-LHE',
+    cityId: '',
     postalCode: '',
     isSameAsPrimary: false,
   }
 }
 
-function emptyContact(): ContactDraft {
+function emptyContact(
+  preferredType: ContactType = 'PARENT',
+): ContactDraft {
   return {
     localKey: `contact-${Date.now()}`,
-    contactType: 'EMERGENCY',
+    contactType: preferredType,
     name: '',
-    relationship: 'FATHER',
+    relationship: preferredType === 'EMERGENCY' ? 'BROTHER' : 'FATHER',
     mobileNumber: '',
     occupation: '',
     identityDocumentNumber: '',
@@ -70,6 +80,19 @@ function emptyContact(): ContactDraft {
     email: '',
     addressLine: '',
   }
+}
+
+function hasParentOrGuardian(
+  rows: Array<{ contactType: string }>,
+) {
+  return rows.some(
+    (row) =>
+      row.contactType === 'PARENT' || row.contactType === 'GUARDIAN',
+  )
+}
+
+function hasEmergency(rows: Array<{ contactType: string }>) {
+  return rows.some((row) => row.contactType === 'EMERGENCY')
 }
 
 export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props) {
@@ -88,7 +111,7 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
   const [telephone, setTelephone] = useState('')
   const [primaryNationalityId, setPrimaryNationalityId] = useState('PK')
   const [secondaryNationalityId, setSecondaryNationalityId] = useState('')
-  const [domicileId, setDomicileId] = useState('PK-PB-LHE')
+  const [domicileId, setDomicileId] = useState('PK-PB')
   const [disabilityDeclared, setDisabilityDeclared] = useState(false)
   const [referralSource, setReferralSource] = useState('FRIEND')
 
@@ -121,12 +144,16 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
           }
           if (profile.telephone) setTelephone(String(profile.telephone))
           if (profile.primaryNationalityId) {
-            setPrimaryNationalityId(String(profile.primaryNationalityId))
+            setPrimaryNationalityId(
+              String(profile.primaryNationalityId).trim().toUpperCase() || 'PK',
+            )
           }
           if (profile.secondaryNationalityId) {
             setSecondaryNationalityId(String(profile.secondaryNationalityId))
           }
-          if (profile.domicileId) setDomicileId(String(profile.domicileId))
+          if (profile.domicileId) {
+            setDomicileId(normalizeDomicileProvinceId(String(profile.domicileId)))
+          }
           if (profile.disabilityDeclared != null) {
             setDisabilityDeclared(!!profile.disabilityDeclared)
           }
@@ -175,9 +202,14 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
       !addressDraft.addressLine1.trim() ||
       !addressDraft.countryId.trim() ||
       !addressDraft.provinceId.trim() ||
-      !addressDraft.cityId.trim()
+      !addressDraft.cityId.trim() ||
+      addressDraft.cityId.trim() === 'Other'
     ) {
-      setError('Please complete all required address fields.')
+      setError(
+        addressDraft.cityId.trim() === 'Other'
+          ? 'Please enter the city name.'
+          : 'Please complete all required address fields.',
+      )
       return
     }
 
@@ -231,6 +263,23 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
     ) {
       setError('Please complete all required contact fields.')
       return
+    }
+    if (contactDraft.contactType === 'EMERGENCY') {
+      const relation = contactDraft.relationship.trim().toUpperCase()
+      if (relation === 'FATHER' || relation === 'GUARDIAN') {
+        setError(
+          'Emergency contact must not be father or guardian. Use a blood relation such as mother, brother, or sister.',
+        )
+        return
+      }
+      if (
+        !(EMERGENCY_RELATIONSHIP_OPTIONS as readonly string[]).includes(relation)
+      ) {
+        setError(
+          'Emergency contact must be a blood relation (mother, sibling, uncle/aunt, grandparent, or cousin).',
+        )
+        return
+      }
     }
 
     setSaving(true)
@@ -319,17 +368,38 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
       setError('Add at least one address before continuing.')
       return
     }
-    if (contacts.length === 0) {
-      setError('Add at least one contact before continuing.')
+    if (contacts.length < 2) {
+      setError(
+        'Add two contacts before continuing: one Parent/Guardian and one Emergency contact.',
+      )
+      return
+    }
+    if (!hasParentOrGuardian(contacts)) {
+      setError('Add a Parent or Guardian contact before continuing.')
+      return
+    }
+    if (!hasEmergency(contacts)) {
+      setError(
+        'Add an Emergency contact (blood relation other than father/guardian) before continuing.',
+      )
       return
     }
     if (
       !applicantName.trim() ||
       !dateOfBirth ||
       !mobileLocal.trim() ||
-      !primaryNationalityId.trim()
+      !primaryNationalityId.trim() ||
+      !domicileId.trim()
     ) {
       setError('Please complete all required personal information fields.')
+      return
+    }
+    if (primaryNationalityId.trim().toUpperCase() !== 'PK') {
+      setError('Primary nationality must be Pakistani.')
+      return
+    }
+    if (!photoUrl) {
+      setError('Profile photograph is required before continuing.')
       return
     }
 
@@ -414,13 +484,18 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
       <div>
         <h2 className="text-xl font-bold text-[#071759]">Personal Information</h2>
         <p className="mt-1 text-sm text-[#354a8d]">
-          Fill personal details, then add at least one address and one contact.
+          Fill personal details, then add at least one address and two contacts
+          (Parent/Guardian and Emergency).
         </p>
       </div>
 
       <section className="rounded-xl border border-[#e4e9f4] bg-white p-5">
-        <h3 className="font-semibold text-[#071759]">Profile Photograph</h3>
-        <p className="mt-1 text-xs text-[#6374ab]">JPEG, PNG, or WEBP — max 5MB.</p>
+        <h3 className="font-semibold text-[#071759]">
+          Profile Photograph <span className="text-red-500">*</span>
+        </h3>
+        <p className="mt-1 text-xs text-[#6374ab]">
+          Required. JPEG, PNG, or WEBP — max 5MB.
+        </p>
         <div className="mt-4 flex flex-wrap items-center gap-4">
           <div className="grid h-24 w-24 place-items-center overflow-hidden rounded-xl border border-[#dce5f6] bg-[#f8faff]">
             {photoUrl ? (
@@ -444,6 +519,11 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
             />
           </label>
         </div>
+        {!photoUrl ? (
+          <p className="mt-3 text-xs font-medium text-[#c2410c]">
+            Upload a clear photograph to continue.
+          </p>
+        ) : null}
       </section>
 
       <section className="space-y-4 rounded-xl border border-[#e4e9f4] bg-white p-5">
@@ -494,20 +574,46 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
           <Field label="Telephone" required={false}>
             <Input value={telephone} onChange={e => setTelephone(e.target.value)} />
           </Field>
-          <Field label="Primary Nationality ID">
-            <Input
+          <Field label="Primary Nationality">
+            <select
               value={primaryNationalityId}
               onChange={e => setPrimaryNationalityId(e.target.value)}
-            />
+              className="h-10 w-full rounded-md border border-[#dce5f6] px-3 text-sm"
+            >
+              {NATIONALITY_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </Field>
-          <Field label="Secondary Nationality ID" required={false}>
-            <Input
+          <Field label="Secondary Nationality" required={false}>
+            <select
               value={secondaryNationalityId}
               onChange={e => setSecondaryNationalityId(e.target.value)}
-            />
+              className="h-10 w-full rounded-md border border-[#dce5f6] px-3 text-sm"
+            >
+              <option value="">None</option>
+              {NATIONALITY_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </Field>
-          <Field label="Domicile ID" required={false}>
-            <Input value={domicileId} onChange={e => setDomicileId(e.target.value)} />
+          <Field label="Domicile (Province)">
+            <select
+              value={domicileId}
+              onChange={e => setDomicileId(e.target.value)}
+              className="h-10 w-full rounded-md border border-[#dce5f6] px-3 text-sm"
+            >
+              <option value="">Select province</option>
+              {DOMICILE_PROVINCE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Referral Source" required={false}>
             <select
@@ -576,7 +682,9 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
               <p className="text-sm font-semibold text-[#071759]">{item.addressType}</p>
               <p className="mt-0.5 text-sm text-[#354a8d]">{item.addressLine1}</p>
               <p className="text-xs text-[#6374ab]">
-                {item.cityId} · {item.provinceId} · {item.countryId}
+                {item.cityId} · {domicileProvinceLabel(item.provinceId)} ·{' '}
+                {COUNTRY_OPTIONS.find(option => option.value === item.countryId)?.label ||
+                  item.countryId}
                 {item.postalCode ? ` · ${item.postalCode}` : ''}
               </p>
             </div>
@@ -662,27 +770,52 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
                   }
                 />
               </Field>
-              <Field label="Country ID">
-                <Input
+              <Field label="Country">
+                <select
                   value={addressDraft.countryId}
                   onChange={e =>
                     setAddressDraft(prev => (prev ? { ...prev, countryId: e.target.value } : prev))
                   }
-                />
+                  className="h-10 w-full rounded-md border border-[#dce5f6] px-3 text-sm"
+                >
+                  {COUNTRY_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </Field>
-              <Field label="Province ID">
-                <Input
-                  value={addressDraft.provinceId}
-                  onChange={e =>
-                    setAddressDraft(prev => (prev ? { ...prev, provinceId: e.target.value } : prev))
-                  }
-                />
+              <Field label="Province">
+                <select
+                  value={normalizeDomicileProvinceId(addressDraft.provinceId)}
+                  onChange={e => {
+                    const provinceId = e.target.value
+                    setAddressDraft(prev =>
+                      prev
+                        ? {
+                            ...prev,
+                            provinceId,
+                            cityId: '',
+                          }
+                        : prev,
+                    )
+                  }}
+                  className="h-10 w-full rounded-md border border-[#dce5f6] px-3 text-sm"
+                >
+                  <option value="">Select province</option>
+                  {DOMICILE_PROVINCE_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </Field>
-              <Field label="City ID">
-                <Input
-                  value={addressDraft.cityId}
-                  onChange={e =>
-                    setAddressDraft(prev => (prev ? { ...prev, cityId: e.target.value } : prev))
+              <Field label="City">
+                <CityFields
+                  provinceId={addressDraft.provinceId}
+                  city={addressDraft.cityId}
+                  onChange={cityId =>
+                    setAddressDraft(prev => (prev ? { ...prev, cityId } : prev))
                   }
                 />
               </Field>
@@ -707,7 +840,10 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-semibold text-[#071759]">Contacts</h3>
-            <p className="text-xs text-[#6374ab]">At least one contact is required.</p>
+            <p className="text-xs text-[#6374ab]">
+              Two contacts required: Parent/Guardian and Emergency (blood
+              relation other than father/guardian).
+            </p>
           </div>
           {!contactDraft ? (
             <Button
@@ -715,7 +851,12 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
               className="h-9 bg-[#0c3cff] hover:bg-[#0934dc]"
               onClick={() => {
                 setError(null)
-                setContactDraft(emptyContact())
+                const nextType: ContactType = !hasParentOrGuardian(contacts)
+                  ? 'PARENT'
+                  : !hasEmergency(contacts)
+                    ? 'EMERGENCY'
+                    : 'PARENT'
+                setContactDraft(emptyContact(nextType))
               }}
             >
               <Plus className="mr-1.5 h-4 w-4" />
@@ -726,7 +867,8 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
 
         {contacts.length === 0 && !contactDraft ? (
           <div className="rounded-lg border border-dashed border-[#dce5f6] bg-[#f8faff] px-4 py-8 text-center text-sm text-[#6374ab]">
-            No contacts added yet. Click Add Contact to open the form.
+            No contacts added yet. Add a Parent/Guardian contact and an Emergency
+            contact.
           </div>
         ) : null}
 
@@ -786,11 +928,23 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
               <Field label="Contact Type">
                 <select
                   value={contactDraft.contactType}
-                  onChange={e =>
+                  onChange={e => {
+                    const nextType = e.target.value as ContactType
                     setContactDraft(prev =>
-                      prev ? { ...prev, contactType: e.target.value as ContactType } : prev,
+                      prev
+                        ? {
+                            ...prev,
+                            contactType: nextType,
+                            relationship:
+                              nextType === 'EMERGENCY'
+                                ? 'BROTHER'
+                                : nextType === 'GUARDIAN'
+                                  ? 'GUARDIAN'
+                                  : 'FATHER',
+                          }
+                        : prev,
                     )
-                  }
+                  }}
                   className="h-10 w-full rounded-md border border-[#dce5f6] bg-white px-3 text-sm"
                 >
                   {CONTACT_TYPE_OPTIONS.map(option => (
@@ -801,14 +955,24 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
                 </select>
               </Field>
               <Field label="Relationship">
-                <Input
+                <select
                   value={contactDraft.relationship}
                   onChange={e =>
                     setContactDraft(prev =>
                       prev ? { ...prev, relationship: e.target.value } : prev,
                     )
                   }
-                />
+                  className="h-10 w-full rounded-md border border-[#dce5f6] bg-white px-3 text-sm"
+                >
+                  {(contactDraft.contactType === 'EMERGENCY'
+                    ? EMERGENCY_RELATIONSHIP_OPTIONS
+                    : PARENT_GUARDIAN_RELATIONSHIP_OPTIONS
+                  ).map(option => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="Contact Name">
                 <Input
@@ -928,6 +1092,57 @@ export function ProfileStep({ applicantId, defaultName, onSaved, onBack }: Props
           )}
         </Button>
       </div>
+    </div>
+  )
+}
+
+function CityFields({
+  provinceId,
+  city,
+  onChange,
+}: {
+  provinceId: string
+  city: string
+  onChange: (city: string) => void
+}) {
+  const province = normalizeDomicileProvinceId(provinceId)
+  const cities = citiesForProvince(province)
+  const listed = cities.filter(name => name !== 'Other')
+  const usingOther = city === 'Other' || (!!city && !listed.includes(city))
+  const selectValue = !province ? '' : usingOther ? 'Other' : city
+
+  if (!province) {
+    return (
+      <select
+        disabled
+        className="h-10 w-full rounded-md border border-[#dce5f6] px-3 text-sm text-[#94a3b8]"
+      >
+        <option>Select province first</option>
+      </select>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      <select
+        value={selectValue}
+        onChange={e => onChange(e.target.value)}
+        className="h-10 w-full rounded-md border border-[#dce5f6] px-3 text-sm"
+      >
+        <option value="">Select city</option>
+        {cities.map(name => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </select>
+      {usingOther ? (
+        <Input
+          value={city === 'Other' ? '' : city}
+          onChange={e => onChange(e.target.value.trim() ? e.target.value : 'Other')}
+          placeholder="Enter city name"
+        />
+      ) : null}
     </div>
   )
 }

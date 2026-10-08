@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
-import { ArrowRight, Check, Copy, PartyPopper } from 'lucide-react'
+import { ArrowRight, Check, Copy, PartyPopper, Printer } from 'lucide-react'
 import { ApplicationSidebar } from '@/components/application/ApplicationSidebar'
 import { useAuth } from '@/context/AuthContext'
 import { getApplicationBindingByApplicantId } from '@/lib/application-session'
@@ -28,6 +28,7 @@ export function ApplicationSuccessPage() {
     ? formatIntakeDateTime(state.submissionDate)
     : formatIntakeDateTime(new Date().toISOString())
   const status = state.applicationStatus || 'Under Review'
+  const challanPath = `/applications/${applicantId}/processing-fee/challan`
 
   const completed = useMemo(
     () =>
@@ -69,8 +70,8 @@ export function ApplicationSuccessPage() {
             Application Submitted Successfully!
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[#354a8d]">
-            Thank you for your application. We have received your information and your application is
-            now under review.
+            Thank you for your application. Print your processing fee challan and deposit the fee at
+            the designated bank to continue.
           </p>
 
           <div className="mx-auto mt-8 max-w-lg rounded-xl border border-[#e8edf5] bg-[#f8faff] px-5 py-4 text-left">
@@ -102,15 +103,39 @@ export function ApplicationSuccessPage() {
             </div>
           </div>
 
+          <div className="mx-auto mt-8 max-w-lg rounded-xl border border-[#bfdbfe] bg-[#eff6ff] px-5 py-4 text-left">
+            <p className="text-sm font-semibold text-[#071759]">Next step: pay processing fee</p>
+            <p className="mt-1 text-xs text-[#6374ab]">
+              Download the three-copy bank challan (Student, University, Bank), then deposit cash
+              using the challan number.
+            </p>
+            <Link
+              to={challanPath}
+              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0c3cff] px-5 text-sm font-medium text-white hover:bg-[#0934dc] sm:w-auto"
+            >
+              <Printer className="h-4 w-4" />
+              View / Print Challan
+            </Link>
+          </div>
+
           <div className="mx-auto mt-8 max-w-lg text-left">
             <h2 className="text-sm font-semibold text-[#071759]">What happens next?</h2>
             <ol className="mt-4 space-y-4">
               <li className="flex gap-3">
                 <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#0c3cff]" />
                 <div>
-                  <p className="text-sm font-semibold text-[#071759]">Confirmation Email</p>
+                  <p className="text-sm font-semibold text-[#071759]">Pay Processing Fee</p>
                   <p className="text-xs text-[#6374ab]">
-                    You will receive a confirmation email with your application details shortly.
+                    Print the challan and deposit cash at the designated bank branch.
+                  </p>
+                </div>
+              </li>
+              <li className="flex gap-3">
+                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#0c3cff]" />
+                <div>
+                  <p className="text-sm font-semibold text-[#071759]">Upload payment evidence</p>
+                  <p className="text-xs text-[#6374ab]">
+                    Open application details and upload a clear photo or PDF of the bank receipt.
                   </p>
                 </div>
               </li>
@@ -119,7 +144,7 @@ export function ApplicationSuccessPage() {
                 <div>
                   <p className="text-sm font-semibold text-[#071759]">Application Review</p>
                   <p className="text-xs text-[#6374ab]">
-                    Our admissions team will review your application and documents (2–4 weeks).
+                    Our admissions team will review your application after fee verification.
                   </p>
                 </div>
               </li>
@@ -143,7 +168,7 @@ export function ApplicationSuccessPage() {
               Go to Dashboard
             </Link>
             <Link
-              to={`/applications/${applicantId}`}
+              to={`/applications/${applicantId}/view`}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0c3cff] px-5 text-sm font-medium text-white hover:bg-[#0934dc]"
             >
               View Application Details

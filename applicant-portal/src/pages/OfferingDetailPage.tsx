@@ -8,6 +8,7 @@ import {
   getApplicantIntake,
   getApplicantOffering,
   getApplicantOfferingCriteria,
+  getApplicantOfferingDeclarations,
   getApplicantOfferingFees,
 } from '@/lib/api/admissions'
 import type {
@@ -15,6 +16,7 @@ import type {
   ApplicantFee,
   ApplicantIntake,
   ApplicantOffering,
+  ApplicantOfferingDeclaration,
 } from '@/lib/api/types'
 import { degreeLevelLabel } from '@/lib/admissions-display'
 
@@ -27,6 +29,9 @@ export function OfferingDetailPage() {
   const [intake, setIntake] = useState<ApplicantIntake | null>(null)
   const [criteria, setCriteria] = useState<ApplicantCriterion[]>([])
   const [fees, setFees] = useState<ApplicantFee[]>([])
+  const [declarations, setDeclarations] = useState<ApplicantOfferingDeclaration[]>(
+    [],
+  )
 
   useEffect(() => {
     if (!offeringId) return
@@ -37,16 +42,21 @@ export function OfferingDetailPage() {
 
     async function load() {
       try {
-        const [offeringData, criteriaData, feesData] = await Promise.all([
-          getApplicantOffering(offeringId),
-          getApplicantOfferingCriteria(offeringId),
-          getApplicantOfferingFees(offeringId),
-        ])
+        const [offeringData, criteriaData, feesData, declarationData] =
+          await Promise.all([
+            getApplicantOffering(offeringId),
+            getApplicantOfferingCriteria(offeringId),
+            getApplicantOfferingFees(offeringId),
+            getApplicantOfferingDeclarations(offeringId).catch(
+              () => [] as ApplicantOfferingDeclaration[],
+            ),
+          ])
         if (cancelled) return
 
         setOffering(offeringData)
         setCriteria(criteriaData)
         setFees(feesData)
+        setDeclarations(declarationData)
 
         try {
           const intakeData = await getApplicantIntake(offeringData.intakeId)
@@ -60,6 +70,7 @@ export function OfferingDetailPage() {
         setOffering(null)
         setCriteria([])
         setFees([])
+        setDeclarations([])
         setIntake(null)
       } finally {
         if (!cancelled) setLoading(false)
@@ -200,6 +211,33 @@ export function OfferingDetailPage() {
                 </ul>
               )}
             </section>
+
+            {declarations.length > 0 ? (
+              <section>
+                <h2 className="mb-3 text-sm font-semibold text-[#071759]">
+                  Terms &amp; declarations
+                </h2>
+                <p className="mb-3 text-xs text-[#6374ab]">
+                  Preview of programme terms. You will formally accept these
+                  during the application declaration step.
+                </p>
+                <ul className="space-y-3">
+                  {declarations.map((item) => (
+                    <li
+                      key={item.id}
+                      className="rounded-lg border border-[#e4e9f4] px-4 py-3 text-sm"
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#6374ab]">
+                        {item.version}
+                      </p>
+                      <p className="mt-2 whitespace-pre-wrap leading-relaxed text-[#354a8d]">
+                        {item.declarationText}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
 
             <div className="rounded-xl border border-[#d6e4ff] bg-[#eef4ff] px-4 py-4 sm:px-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

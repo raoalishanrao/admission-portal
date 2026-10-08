@@ -1,6 +1,7 @@
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { BookOpen, LogOut, Sun } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { getActiveApplication } from '@/lib/application-session'
 import { getInitials } from '@/lib/auth'
 
 const navLinkClass = (active: boolean) =>
@@ -14,13 +15,22 @@ export function SiteHeader() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, isAuthenticated, logout } = useAuth()
+  const activeApp =
+    isAuthenticated && user ? getActiveApplication(user.email) : null
+  const admitCardApplicantId = user?.applicantId || activeApp?.applicantId || ''
   const onHome = location.pathname === '/'
   const onMyApplication =
     location.pathname.startsWith('/my-application') ||
     location.pathname.startsWith('/applications')
+  const onResults = location.pathname.startsWith('/results')
+  const onOffer = location.pathname.startsWith('/offer')
+  const onAdmitCard = location.pathname.includes('/admit-card')
   const onAdmissions =
     !onHome &&
     !onMyApplication &&
+    !onResults &&
+    !onOffer &&
+    !onAdmitCard &&
     (location.pathname.startsWith('/intakes') ||
       location.pathname.startsWith('/offerings') ||
       location.pathname.startsWith('/apply'))
@@ -57,12 +67,38 @@ export function SiteHeader() {
             FAQ
           </a>
           {isAuthenticated ? (
-            <NavLink
-              to="/my-application"
-              className={({ isActive }) => navLinkClass(isActive || onMyApplication)}
-            >
-              My Application
-            </NavLink>
+            <>
+              <NavLink
+                to="/my-application"
+                className={({ isActive }) =>
+                  navLinkClass(isActive || onMyApplication)
+                }
+              >
+                My Application
+              </NavLink>
+              <NavLink
+                to="/results"
+                className={({ isActive }) => navLinkClass(isActive || onResults)}
+              >
+                Results
+              </NavLink>
+              <NavLink
+                to="/offer"
+                className={({ isActive }) => navLinkClass(isActive || onOffer)}
+              >
+                Offer
+              </NavLink>
+              {admitCardApplicantId ? (
+                <NavLink
+                  to={`/applications/${admitCardApplicantId}/admit-card`}
+                  className={({ isActive }) =>
+                    navLinkClass(isActive || onAdmitCard)
+                  }
+                >
+                  Admit card
+                </NavLink>
+              ) : null}
+            </>
           ) : null}
         </nav>
 
@@ -83,21 +119,19 @@ export function SiteHeader() {
               >
                 My App
               </Link>
-              <div className="hidden items-center gap-2 sm:flex">
-                <span className="grid h-9 w-9 place-items-center rounded-full bg-[#edf3ff] text-xs font-semibold text-[#0c3cff]">
-                  {getInitials(user.name) || 'A'}
-                </span>
-                <span className="max-w-36 truncate text-sm font-medium text-[#19316f]">
-                  {user.name}
-                </span>
-              </div>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#c5d0ea] px-3 text-sm font-medium text-[#19316f] hover:bg-[#f8faff]"
+                className="inline-flex h-9 items-center gap-2 rounded-md px-1.5 text-sm font-medium text-[#19316f] hover:bg-[#f8faff] sm:px-2"
+                title="Log out"
               >
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Log out</span>
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-[#edf3ff] text-xs font-semibold text-[#0c3cff]">
+                  {getInitials(user.name) || 'A'}
+                </span>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                  <LogOut className="h-4 w-4" />
+                  Log out
+                </span>
               </button>
             </>
           ) : (

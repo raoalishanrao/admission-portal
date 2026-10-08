@@ -12,6 +12,7 @@ import type {
   ProfilePhotographResponse,
   ProfileStepResponse,
   ProgrammeStepResponse,
+  RequiredAcademicLevels,
   SaveAcademicRequest,
   SaveDeclarationRequest,
   SaveProfileRequest,
@@ -62,6 +63,13 @@ export async function saveProgrammeStep(
 export async function getAcademicStep(applicantId: string) {
   const response = await apiGet<AcademicStepResponse>(
     API_ENDPOINTS.applicationAcademic(base(applicantId)),
+  )
+  return response.data
+}
+
+export async function getRequiredAcademicLevels(applicantId: string) {
+  const response = await apiGet<RequiredAcademicLevels>(
+    API_ENDPOINTS.applicationAcademicRequiredLevels(base(applicantId)),
   )
   return response.data
 }

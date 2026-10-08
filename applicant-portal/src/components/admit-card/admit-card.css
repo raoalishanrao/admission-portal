@@ -1,0 +1,441 @@
+.admit-card-sheet {
+  --ac-navy: #0a1f5c;
+  --ac-blue: #1a56db;
+  --ac-label: #5b7bb8;
+  --ac-line: #c9daf5;
+  --ac-soft: #eef4fc;
+  --ac-border: #9eb8e0;
+  --ac-text: #0f172a;
+  --ac-muted: #64748b;
+  width: 190mm;
+  max-width: 100%;
+  margin: 0 auto;
+  background: #fff;
+  color: var(--ac-text);
+  border: 1.5px solid var(--ac-border);
+  border-radius: 10px;
+  box-shadow: 0 10px 36px rgba(10, 31, 92, 0.08);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+.admit-card-sheet__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px 16px;
+}
+
+.admit-card-sheet__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.admit-card-sheet__mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: linear-gradient(145deg, #14d4d6, #2bc89a);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.admit-card-sheet__org h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ac-navy);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.admit-card-sheet__org p {
+  margin: 3px 0 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ac-label);
+}
+
+.admit-card-sheet__serial {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.admit-card-sheet__serial span {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ac-muted);
+}
+
+.admit-card-sheet__serial strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ac-blue);
+  line-height: 1.1;
+}
+
+.admit-card-sheet__banner {
+  margin: 0;
+  padding: 11px 20px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--ac-navy);
+}
+
+.admit-card-sheet__profile {
+  display: grid;
+  grid-template-columns: 1fr 118px;
+  gap: 18px;
+  align-items: start;
+  margin: 16px 20px 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--ac-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.admit-card-sheet__fields {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+
+.admit-card-sheet__row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px solid #e8eef8;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.admit-card-sheet__row:last-child {
+  border-bottom: none;
+  padding-bottom: 2px;
+}
+
+.admit-card-sheet__row:first-child {
+  padding-top: 2px;
+}
+
+.admit-card-sheet__row dt {
+  margin: 0;
+  color: var(--ac-label);
+  font-weight: 600;
+}
+
+.admit-card-sheet__row dt::after {
+  content: ':';
+}
+
+.admit-card-sheet__row dd {
+  margin: 0;
+  color: var(--ac-navy);
+  font-weight: 700;
+}
+
+.admit-card-sheet__photo-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.admit-card-sheet__photo,
+.admit-card-sheet__photo-placeholder {
+  width: 112px;
+  height: 128px;
+  border: 1.5px solid var(--ac-border);
+  border-radius: 4px;
+  background: var(--ac-soft);
+  object-fit: cover;
+}
+
+.admit-card-sheet__photo-placeholder {
+  display: grid;
+  place-items: center;
+  color: #d4a5a5;
+}
+
+.admit-card-sheet__photo-placeholder svg {
+  width: 64px;
+  height: 64px;
+}
+
+.admit-card-sheet__photo-caption {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ac-label);
+}
+
+.admit-card-sheet__schedule {
+  margin: 0 20px 14px;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--ac-line);
+  border-radius: 8px;
+  background: var(--ac-soft);
+}
+
+.admit-card-sheet__venue-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ac-label);
+  margin-bottom: 4px;
+}
+
+.admit-card-sheet__venue-value {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ac-navy);
+  line-height: 1.3;
+}
+
+.admit-card-sheet__meta-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--ac-line);
+  padding-top: 10px;
+}
+
+.admit-card-sheet__meta-item {
+  padding: 0 12px;
+  border-right: 1px solid var(--ac-line);
+}
+
+.admit-card-sheet__meta-item:first-child {
+  padding-left: 0;
+}
+
+.admit-card-sheet__meta-item:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+.admit-card-sheet__meta-item span {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ac-label);
+  margin-bottom: 3px;
+}
+
+.admit-card-sheet__meta-item strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ac-navy);
+  line-height: 1.25;
+}
+
+.admit-card-sheet__programmes {
+  padding: 0 20px 14px;
+}
+
+.admit-card-sheet__programmes h3,
+.admit-card-sheet__instructions h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ac-navy);
+}
+
+.admit-card-sheet__programme-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.admit-card-sheet__programme-table th {
+  background: var(--ac-navy);
+  color: #fff;
+  font-weight: 700;
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.admit-card-sheet__programme-table th.admit-card-sheet__pref,
+.admit-card-sheet__programme-table th.admit-card-sheet__code,
+.admit-card-sheet__programme-table td.admit-card-sheet__pref,
+.admit-card-sheet__programme-table td.admit-card-sheet__code {
+  text-align: center;
+  width: 72px;
+}
+
+.admit-card-sheet__programme-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e8eef8;
+  color: var(--ac-navy);
+  font-weight: 600;
+}
+
+.admit-card-sheet__programme-table tbody tr:nth-child(even) td {
+  background: var(--ac-soft);
+}
+
+.admit-card-sheet__programme-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admit-card-sheet__programme-table td.admit-card-sheet__pref {
+  font-weight: 800;
+  color: var(--ac-blue);
+}
+
+.admit-card-sheet__bottom {
+  display: grid;
+  grid-template-columns: 1fr 120px;
+  gap: 18px;
+  align-items: start;
+  margin: 0 20px 14px;
+}
+
+.admit-card-sheet__instructions p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #475569;
+}
+
+.admit-card-sheet__qr-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.admit-card-sheet__qr-frame {
+  width: 108px;
+  height: 108px;
+  padding: 6px;
+  border: 1.5px solid var(--ac-border);
+  border-radius: 6px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+}
+
+.admit-card-sheet__qr {
+  width: 92px;
+  height: 92px;
+  object-fit: contain;
+}
+
+.admit-card-sheet__qr-block span {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ac-label);
+}
+
+.admit-card-sheet__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 20px 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--ac-border);
+  font-size: 11px;
+  color: var(--ac-label);
+}
+
+@media (max-width: 640px) {
+  .admit-card-sheet__top {
+    flex-wrap: wrap;
+  }
+
+  .admit-card-sheet__serial {
+    width: 100%;
+    text-align: left;
+  }
+
+  .admit-card-sheet__profile {
+    grid-template-columns: 1fr;
+  }
+
+  .admit-card-sheet__photo-wrap {
+    order: -1;
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+
+  .admit-card-sheet__row {
+    grid-template-columns: 120px 1fr;
+  }
+
+  .admit-card-sheet__meta-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 0;
+  }
+
+  .admit-card-sheet__meta-item {
+    border-right: none;
+    padding: 0 8px 8px 0;
+  }
+
+  .admit-card-sheet__meta-item:nth-child(odd) {
+    border-right: 1px solid var(--ac-line);
+    padding-right: 10px;
+  }
+
+  .admit-card-sheet__bottom {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  .admit-card-toolbar {
+    display: none !important;
+  }
+
+  .admit-card-page {
+    background: #fff !important;
+    padding: 0 !important;
+  }
+
+  .admit-card-sheet {
+    width: 100%;
+    box-shadow: none !important;
+    border-radius: 0;
+  }
+}

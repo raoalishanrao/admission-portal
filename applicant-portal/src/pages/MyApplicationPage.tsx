@@ -1,65 +1,71 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { ArrowRight, FileText, Plus } from 'lucide-react'
+import {
+  ArrowRight,
+  FileText,
+  GraduationCap,
+  IdCard,
+  Plus,
+  Printer,
+  Trophy,
+} from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/context/AuthContext'
-import { getApplicantIntake } from '@/lib/api/admissions'
+import { listMyApplications } from '@/lib/api/my-applications'
 import {
   applicationPath,
-  getActiveApplication,
-  type ApplicationBinding,
+  submittedApplicationPath,
+  upsertApplicationBinding,
 } from '@/lib/application-session'
 import { formatIntakeDate } from '@/lib/admissions-display'
+import type { ApplicantOwnedApplication } from '@/lib/api/types'
 
-type ApplicationRow = ApplicationBinding & {
-  intakeName?: string
+function isSubmittedStatus(status: string) {
+  return ['SUBMITTED', 'COMPLETE', 'APPROVED', 'REJECTED'].includes(status.toUpperCase())
 }
 
 export function MyApplicationPage() {
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, user, setApplicantId } = useAuth()
   const [loading, setLoading] = useState(true)
-  const [row, setRow] = useState<ApplicationRow | null>(null)
+  const [row, setRow] = useState<ApplicantOwnedApplication | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const userEmail = user?.email
+  const userApplicantId = user?.applicantId
 
   useEffect(() => {
-    if (!isAuthenticated || !user) return
-    const email = user.email
-    const knownApplicantId = user.applicantId
+    if (!isAuthenticated || !userEmail) return
+    const email = userEmail
     let cancelled = false
 
     async function load() {
       setLoading(true)
-      let active = getActiveApplication(email)
-      if (!active && knownApplicantId) {
-        active = {
-          applicantId: knownApplicantId,
-          applicationReference: knownApplicantId,
-          intakeSessionId: '',
-          email,
-          updatedAt: new Date().toISOString(),
-        }
-      }
+      setError(null)
+      try {
+        const apps = await listMyApplications()
+        const active = apps[0] ?? null
+        if (cancelled) return
 
-      if (!active) {
+        if (active) {
+          upsertApplicationBinding({
+            applicantId: active.applicantId,
+            applicationReference: active.applicationReference,
+            intakeSessionId: active.intakeSessionId,
+            email,
+            updatedAt: active.updatedAt,
+          })
+          if (active.applicantId !== userApplicantId) {
+            setApplicantId(active.applicantId)
+          }
+        }
+        setRow(active)
+      } catch (err) {
         if (!cancelled) {
           setRow(null)
-          setLoading(false)
+          setError(err instanceof Error ? err.message : 'Unable to load your application.')
         }
-        return
-      }
-
-      let enriched: ApplicationRow = active
-      if (active.intakeSessionId) {
-        try {
-          const intake = await getApplicantIntake(active.intakeSessionId)
-          enriched = { ...active, intakeName: intake.intakeName }
-        } catch {
-          enriched = active
-        }
-      }
-
-      if (!cancelled) {
-        setRow(enriched)
-        setLoading(false)
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
 
@@ -67,11 +73,13 @@ export function MyApplicationPage() {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, user])
+  }, [isAuthenticated, setApplicantId, userApplicantId, userEmail])
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/sign-in" replace state={{ from: '/my-application' }} />
   }
+
+  const submitted = row ? isSubmittedStatus(row.applicationStatus) : false
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
@@ -98,6 +106,10 @@ export function MyApplicationPage() {
       <div className="mt-8">
         {loading ? (
           <Skeleton className="h-28 w-full rounded-xl" />
+        ) : error ? (
+          <div className="rounded-xl border border-red-200 bg-white px-6 py-8 text-center">
+            <p className="text-sm font-medium text-red-700">{error}</p>
+          </div>
         ) : !row ? (
           <div className="rounded-xl border border-dashed border-[#dce5f6] bg-white px-6 py-14 text-center">
             <FileText className="mx-auto h-10 w-10 text-[#94a3b8]" />
@@ -125,18 +137,66 @@ export function MyApplicationPage() {
                   Ref: {row.applicationReference}
                   {row.updatedAt ? ` · Updated ${formatIntakeDate(row.updatedAt)}` : null}
                 </p>
-                <p className="mt-2 text-xs text-[#94a3b8]">
-                  Only one application is allowed at a time. Continue this one to finish or update
-                  it.
-                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="inline-flex rounded-full bg-[#dbeafe] px-2.5 py-1 text-[11px] font-semibold text-[#1d4ed8]">
+                    {row.applicationStatus}
+                  </span>
+                  <span className="inline-flex rounded-full bg-[#fff7ed] px-2.5 py-1 text-[11px] font-semibold text-[#c2410c]">
+                    Fee: {row.processingFeeStatus}
+                  </span>
+                </div>
               </div>
-              <Link
-                to={applicationPath(row.applicantId)}
-                className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0c3cff] px-4 text-sm font-medium text-white hover:bg-[#0934dc]"
-              >
-                Continue
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                {submitted ? (
+                  <>
+                    <Link
+                      to={submittedApplicationPath(row.applicantId)}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0c3cff] px-4 text-sm font-medium text-white hover:bg-[#0934dc]"
+                    >
+                      View details
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                    <Link
+                      to={`/applications/${row.applicantId}/processing-fee/challan`}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#c9d4ef] bg-white px-4 text-sm font-medium text-[#071759] hover:bg-[#f8faff]"
+                    >
+                      <Printer className="h-4 w-4" />
+                      Fee Challan
+                    </Link>
+                    {row.applicationStatus.toUpperCase() === 'APPROVED' ? (
+                      <Link
+                        to={`/applications/${row.applicantId}/admit-card`}
+                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#c9d4ef] bg-white px-4 text-sm font-medium text-[#071759] hover:bg-[#f8faff]"
+                      >
+                        <IdCard className="h-4 w-4" />
+                        Admit card
+                      </Link>
+                    ) : null}
+                    <Link
+                      to="/results"
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#c9d4ef] bg-white px-4 text-sm font-medium text-[#071759] hover:bg-[#f8faff]"
+                    >
+                      <Trophy className="h-4 w-4" />
+                      Results
+                    </Link>
+                    <Link
+                      to="/offer"
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#c9d4ef] bg-white px-4 text-sm font-medium text-[#071759] hover:bg-[#f8faff]"
+                    >
+                      <GraduationCap className="h-4 w-4" />
+                      Offer
+                    </Link>
+                  </>
+                ) : (
+                  <Link
+                    to={applicationPath(row.applicantId)}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0c3cff] px-4 text-sm font-medium text-white hover:bg-[#0934dc]"
+                  >
+                    Continue
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         )}

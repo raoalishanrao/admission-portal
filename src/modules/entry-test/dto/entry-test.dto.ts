@@ -62,6 +62,7 @@ export class TestSessionResponseDto extends TestSessionDto {
 }
 export class AdmitCardResponseDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) applicantId!: string;
   @ApiProperty() applicationId!: string;
   @ApiProperty() applicantName!: string;
   @ApiProperty() fatherGuardianName!: string;

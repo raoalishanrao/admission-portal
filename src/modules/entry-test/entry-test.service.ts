@@ -431,7 +431,7 @@ export class EntryTestService {
     return { ...row, offeringIds: links.map((link) => link.programmeOfferingId) };
   }
   private async cardDto(row: ApplicationAdmitCardEntity) {
-    const frontEndAttendanceBase = (process.env.F006_ATTENDANCE_PAGE_URL ?? 'http://localhost:3000/attendance/qr').replace(/\/$/, '');
+    const frontEndAttendanceBase = (process.env.F006_ATTENDANCE_PAGE_URL ?? 'http://localhost:5173/attendance/qr').replace(/\/$/, '');
     let photographDownloadUrl: string | null = null;
     try {
       photographDownloadUrl = await this.storage.resolveDownloadUrl(row.photographReference);

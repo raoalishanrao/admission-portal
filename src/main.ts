@@ -12,10 +12,54 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
 
+  const defaultCorsOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+  ];
+  const envCorsOrigins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const allowedOrigins = new Set([...defaultCorsOrigins, ...envCorsOrigins]);
+
   app.enableCors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Non-browser / same-origin tools send no Origin.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+      try {
+        const host = new URL(origin).hostname;
+        // Allow local Vite and ngrok tunnels used for phone/QR testing.
+        if (
+          host === 'localhost' ||
+          host === '127.0.0.1' ||
+          host.endsWith('.ngrok-free.app') ||
+          host.endsWith('.ngrok.app') ||
+          host.endsWith('.ngrok.io')
+        ) {
+          callback(null, true);
+          return;
+        }
+      } catch {
+        // fall through
+      }
+      callback(new Error(`CORS blocked for origin: ${origin}`), false);
+    },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'ngrok-skip-browser-warning',
+    ],
     credentials: true,
   });
 
@@ -25,6 +69,17 @@ async function bootstrap() {
       prefix: '/media/',
     });
   }
+
+  // Older admit-card QR codes point at the API host (/attendance/qr/:token).
+  // Send scanners to the admin portal attendance page.
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.get('/attendance/qr/:qrToken', (req: { params: { qrToken: string } }, res: { redirect: (code: number, url: string) => void }) => {
+    const base = (
+      process.env.F006_ATTENDANCE_PAGE_URL ??
+      'http://localhost:5173/attendance/qr'
+    ).replace(/\/$/, ''); // admin Vite default
+    res.redirect(302, `${base}/${encodeURIComponent(req.params.qrToken)}`);
+  });
 
   const apiPrefix = config.get<string>('apiPrefix', 'api/v1');
   app.setGlobalPrefix(apiPrefix);

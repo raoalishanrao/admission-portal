@@ -134,3 +134,7 @@ export function applicationPath(applicantId: string, offeringId?: string | null)
     ? `/applications/${applicantId}?offeringId=${encodeURIComponent(offeringId)}`
     : `/applications/${applicantId}`
 }
+
+export function submittedApplicationPath(applicantId: string) {
+  return `/applications/${applicantId}/view`
+}

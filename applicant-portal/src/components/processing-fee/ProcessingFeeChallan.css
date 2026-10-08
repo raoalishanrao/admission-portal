@@ -1,0 +1,376 @@
+/* Match Processing Fee Challan.pdf — landscape A4, 3 copies, Times New Roman */
+
+.challan-sheet * {
+  box-sizing: border-box;
+}
+
+.challan-sheet {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: #fff;
+  color: #000;
+  border: 2px double #000;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.challan-copy {
+  padding: 5px 6px 6px;
+  border-right: 1px solid #000;
+  font-size: 8px;
+  line-height: 1.15;
+}
+
+.challan-copy:last-child {
+  border-right: none;
+}
+
+/* Header */
+.challan-top {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  gap: 3px;
+  align-items: flex-start;
+  min-height: 52px;
+}
+
+.uni-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.uni-logo-mark {
+  width: 28px;
+  height: 20px;
+  border: 1.5px solid #0a3d8f;
+  color: #0a3d8f;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.uni-logo-text {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 5px;
+  font-weight: 800;
+  color: #0a3d8f;
+  text-align: center;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+}
+
+.bank-center {
+  text-align: center;
+  padding-top: 2px;
+}
+
+.bank-line-1 {
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.bank-line-2 {
+  font-size: 7px;
+  font-weight: 700;
+  text-decoration: underline;
+  margin-top: 1px;
+}
+
+.bank-line-3 {
+  font-size: 7px;
+  margin-top: 1px;
+}
+
+.bank-logo-wrap {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.bank-logo-img {
+  width: 44px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.bank-logo-fallback {
+  text-align: center;
+  line-height: 1.05;
+  color: #006633;
+}
+
+.bank-a {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.bank-name {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 5.5px;
+  font-weight: 800;
+  color: #000;
+  max-width: 48px;
+}
+
+.inst-copy-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  margin-top: 3px;
+  font-size: 7.5px;
+}
+
+.copy-title {
+  margin: 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dates-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 7.5px;
+}
+
+.dates-row-due {
+  justify-content: flex-start;
+  margin-bottom: 3px;
+}
+
+.dates-right {
+  text-align: right;
+}
+
+.section-head {
+  font-size: 8px;
+  font-weight: 700;
+  margin: 2px 0 2px;
+  text-align: center;
+}
+
+.section-head-left {
+  text-align: left;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 1px 8px;
+  font-size: 7.5px;
+  margin-bottom: 3px;
+}
+
+.info-grid strong {
+  font-weight: 700;
+}
+
+.programme-block {
+  display: flex;
+  gap: 6px;
+  min-height: 28px;
+  margin-bottom: 3px;
+  font-size: 7.5px;
+}
+
+.programme-label {
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.programme-items {
+  font-weight: 700;
+}
+
+.instr {
+  margin: 0 0 2px;
+  font-size: 7px;
+}
+
+/* Charges + depositor fused table (matches PDF) */
+.charges-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 3px;
+  font-size: 7.5px;
+}
+
+.charges-table .col-nature {
+  width: 42%;
+}
+
+.charges-table .col-amount {
+  width: 20%;
+}
+
+.charges-table .col-depositor {
+  width: 38%;
+}
+
+.charges-table th,
+.charges-table td {
+  border: 1px solid #000;
+  padding: 2px 3px;
+  vertical-align: middle;
+}
+
+.charges-table th {
+  font-weight: 700;
+  text-align: center;
+  height: 22px;
+}
+
+.charges-table th.th-empty {
+  border-bottom-color: #000;
+  background: #fff;
+}
+
+.charges-table td {
+  height: 16px;
+}
+
+.charges-table .amt {
+  text-align: right;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dep-cell {
+  font-weight: 700;
+  vertical-align: top !important;
+  padding-top: 3px !important;
+}
+
+.dep-total-cell {
+  border-top: none;
+}
+
+.total-row td {
+  font-weight: 700;
+  height: 20px;
+}
+
+.words-row td {
+  height: 22px;
+  font-size: 7.5px;
+}
+
+.words-value {
+  text-decoration: underline;
+  font-weight: 700;
+}
+
+/* Signatures */
+.auth-signs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 0 4px;
+}
+
+.auth-sign {
+  text-align: center;
+  font-size: 7.5px;
+}
+
+.auth-rule {
+  border-top: 1px solid #000;
+  margin-bottom: 2px;
+  height: 0;
+}
+
+/* Footer */
+.footer-row {
+  display: grid;
+  grid-template-columns: 1fr 48px;
+  gap: 5px;
+  margin-top: 8px;
+  align-items: end;
+}
+
+.terms p {
+  margin: 0 0 3px;
+  font-size: 5px;
+  line-height: 1.15;
+  color: #444;
+}
+
+.terms-ur {
+  direction: rtl;
+  text-align: right;
+  font-size: 5px !important;
+  color: #555 !important;
+}
+
+.erp-box {
+  width: 48px;
+  height: 48px;
+  border: 1px solid #999;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 2px;
+}
+
+.erp-box span {
+  font-size: 4.5px;
+  color: #aaa;
+  text-align: center;
+  line-height: 1.1;
+}
+
+@media print {
+  @page {
+    size: letter landscape;
+    margin: 5mm;
+  }
+
+  .challan-toolbar,
+  .site-header,
+  [data-site-header] {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  .challan-sheet {
+    max-width: none;
+    width: 100%;
+    border-width: 1.5px;
+  }
+
+  .challan-copy {
+    page-break-inside: avoid;
+  }
+}
+
+@media (max-width: 980px) {
+  .challan-sheet {
+    grid-template-columns: 1fr;
+    max-width: 420px;
+  }
+
+  .challan-copy {
+    border-right: none;
+    border-bottom: 1px solid #000;
+  }
+
+  .challan-copy:last-child {
+    border-bottom: none;
+  }
+}

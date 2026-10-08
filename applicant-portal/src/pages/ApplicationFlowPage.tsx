@@ -20,6 +20,7 @@ import {
 import { getApplicantIntake, getApplicantOffering } from '@/lib/api/admissions'
 import {
   getApplicationBindingByApplicantId,
+  submittedApplicationPath,
 } from '@/lib/application-session'
 import { APPLICATION_STEP_ORDER } from '@/lib/application-steps'
 import type {
@@ -40,7 +41,7 @@ export function ApplicationFlowPage() {
   const [error, setError] = useState<string | null>(null)
   const [intake, setIntake] = useState<ApplicantIntake | null>(null)
   const [primaryOffering, setPrimaryOffering] = useState<ApplicantOffering | null>(null)
-  const [currentStep, setCurrentStep] = useState<ApplicationStepId>('profile')
+  const [currentStep, setCurrentStep] = useState<ApplicationStepId>('programme')
   const [completed, setCompleted] = useState<Partial<Record<ApplicationStepId, boolean>>>({})
   const binding = applicantId ? getApplicationBindingByApplicantId(applicantId) : null
 
@@ -106,6 +107,17 @@ export function ApplicationFlowPage() {
           setError('Unable to resolve intake for this application.')
         }
 
+        const status = progress?.declaration?.applicationStatus?.toUpperCase()
+        if (
+          status &&
+          ['SUBMITTED', 'COMPLETE', 'APPROVED', 'REJECTED'].includes(status)
+        ) {
+          if (!cancelled) {
+            navigate(submittedApplicationPath(applicantId), { replace: true })
+          }
+          return
+        }
+
         if (progress?.nextCompleted) {
           const firstIncomplete =
             APPLICATION_STEP_ORDER.find(
@@ -161,9 +173,9 @@ export function ApplicationFlowPage() {
 
   function goNext(from: ApplicationStepId) {
     const map: Record<ApplicationStepId, ApplicationStepId | null> = {
-      profile: 'programme',
       programme: 'academic',
-      academic: 'declaration',
+      academic: 'profile',
+      profile: 'declaration',
       declaration: 'review',
       review: null,
     }
@@ -171,6 +183,10 @@ export function ApplicationFlowPage() {
     const next = map[from]
     if (next) setCurrentStep(next)
   }
+
+  const backToIntakePath = primaryOffering
+    ? `/offerings/${primaryOffering.id}`
+    : `/intakes/${intake.id}`
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -228,24 +244,13 @@ export function ApplicationFlowPage() {
           />
 
           <div className="mt-6">
-            {currentStep === 'profile' ? (
-              <ProfileStep
-                applicantId={applicantId}
-                defaultName={user?.name}
-                onSaved={() => {
-                  void refreshProgress()
-                  goNext('profile')
-                }}
-              />
-            ) : null}
-
             {currentStep === 'programme' ? (
               <ProgrammeStep
                 applicantId={applicantId}
                 intake={intake}
                 preferredOfferingId={preferredOfferingId}
                 onPrimaryOfferingChange={setPrimaryOffering}
-                onBack={() => setCurrentStep('profile')}
+                onBack={() => navigate(backToIntakePath)}
                 onSaved={offering => {
                   if (offering) setPrimaryOffering(offering)
                   void refreshProgress()
@@ -265,10 +270,22 @@ export function ApplicationFlowPage() {
               />
             ) : null}
 
+            {currentStep === 'profile' ? (
+              <ProfileStep
+                applicantId={applicantId}
+                defaultName={user?.name}
+                onBack={() => setCurrentStep('academic')}
+                onSaved={() => {
+                  void refreshProgress()
+                  goNext('profile')
+                }}
+              />
+            ) : null}
+
             {currentStep === 'declaration' ? (
               <DeclarationStep
                 applicantId={applicantId}
-                onBack={() => setCurrentStep('academic')}
+                onBack={() => setCurrentStep('profile')}
                 onSaved={() => {
                   void refreshProgress()
                   goNext('declaration')

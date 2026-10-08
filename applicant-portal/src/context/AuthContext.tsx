@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { ApiError } from '@/lib/api/client'
 import { loginWithApi } from '@/lib/api/auth'
+import { listMyApplications } from '@/lib/api/my-applications'
 import {
   getApplicantIdentity,
   getLatestApplicationBinding,
+  upsertApplicationBinding,
 } from '@/lib/application-session'
 import {
   clearStoredUser,
@@ -38,7 +40,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await loginWithApi({ email: trimmedEmail, password })
       const binding = getLatestApplicationBinding(trimmedEmail)
       const identity = getApplicantIdentity(trimmedEmail)
-      const nextUser: AuthUser = {
+
+      // Persist token first so authenticated follow-up calls can resolve owned apps.
+      const provisional: AuthUser = {
         email: data.email,
         name: getDisplayName(data.email) || 'Applicant',
         userId: data.user_id,
@@ -47,6 +51,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         accessToken: data.access_token,
         applicantId: binding?.applicantId ?? identity?.lastApplicantId,
       }
+      storeUser(provisional)
+
+      let applicantId = provisional.applicantId
+      try {
+        const apps = await listMyApplications()
+        const active = apps[0]
+        if (active) {
+          applicantId = active.applicantId
+          upsertApplicationBinding({
+            applicantId: active.applicantId,
+            applicationReference: active.applicationReference,
+            intakeSessionId: active.intakeSessionId,
+            email: data.email,
+            updatedAt: active.updatedAt,
+          })
+        }
+      } catch {
+        // Keep local binding fallback if mine lookup fails.
+      }
+
+      const nextUser: AuthUser = { ...provisional, applicantId }
       storeUser(nextUser)
       setUser(nextUser)
       return { ok: true as const }
@@ -68,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setApplicantId = useCallback((applicantId: string) => {
     setUser(prev => {
-      if (!prev) return prev
+      if (!prev || prev.applicantId === applicantId) return prev
       const next = { ...prev, applicantId }
       storeUser(next)
       return next

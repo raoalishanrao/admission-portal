@@ -220,13 +220,8 @@ export class ApplicantApplicationsService {
       });
     });
 
-    if (app.programmeStepSaved) {
-      await this.assertRequiredAcademicLevels(app, applicantId);
-      await this.assertEligibilityMet(
-        { ...app, academicStepSaved: true },
-        applicantId,
-      );
-    }
+    // Required levels / eligibility are enforced when continuing the academic
+    // step on the client and at final submit — not on each incremental save.
 
     return this.getAcademic(user, applicantId);
   }
@@ -290,13 +285,8 @@ export class ApplicantApplicationsService {
       });
     });
 
-    if (app.programmeStepSaved) {
-      await this.assertRequiredAcademicLevels(app, applicantId);
-      await this.assertEligibilityMet(
-        { ...app, academicStepSaved: true },
-        applicantId,
-      );
-    }
+    // Required levels / eligibility are enforced when continuing the academic
+    // step on the client and at final submit — not on each incremental save.
 
     return this.getAcademic(user, applicantId);
   }
@@ -1708,7 +1698,11 @@ export class ApplicantApplicationsService {
       dateOfBirth: dto.dateOfBirth,
       mobileNumber: dto.mobileNumber,
       telephone: dto.telephone ?? null,
-      profilePhotograph: dto.profilePhotograph ?? null,
+      // Keep an already-uploaded photo unless the client explicitly replaces it.
+      profilePhotograph:
+        dto.profilePhotograph !== undefined
+          ? dto.profilePhotograph
+          : app.profilePhotograph,
       primaryNationalityId: dto.primaryNationalityId,
       secondaryNationalityId: dto.secondaryNationalityId ?? null,
       domicileId: dto.domicileId ?? null,

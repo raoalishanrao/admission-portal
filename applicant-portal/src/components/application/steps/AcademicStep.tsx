@@ -15,20 +15,26 @@ import {
   createAcademicStep,
   deleteAcademicDocument,
   getAcademicStep,
+  getRequiredAcademicLevels,
   updateAcademicStep,
   uploadAcademicDocument,
 } from '@/lib/api/applications'
 import {
+  academicDegreeLabel,
+  academicRecordTitle,
   calcPercentage,
   DEGREE_TYPE_OPTIONS,
   DIVISION_OPTIONS,
   DOCUMENT_TYPE_OPTIONS,
   GRADE_OPTIONS,
+  PAKISTAN_BOARD_OPTIONS,
+  passingYearOptions,
 } from '@/lib/application-steps'
 import type {
   AcademicDocumentType,
   AcademicRecordFields,
   AcademicRecordResponse,
+  RequiredAcademicLevels,
 } from '@/lib/api/types'
 
 type Props = {
@@ -37,14 +43,19 @@ type Props = {
   onBack: () => void
 }
 
+const OTHER_BOARD = 'Other / University / Institution'
+const STANDARD_BOARDS = PAKISTAN_BOARD_OPTIONS.filter(board => board !== OTHER_BOARD)
+const PASSING_YEARS = passingYearOptions()
+
 type DraftRecord = AcademicRecordFields & { localKey: string; id?: string }
 
-function emptyDraft(): DraftRecord {
+function emptyDraft(preferredDegreeType?: string): DraftRecord {
+  const degreeType = preferredDegreeType || 'MATRIC'
   return {
     localKey: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    degreeType: 'SSC',
+    degreeType,
     rollNumber: '',
-    qualificationName: '',
+    qualificationName: academicDegreeLabel(degreeType),
     boardOrInstitution: '',
     passingYear: '',
     division: '1st',
@@ -76,12 +87,21 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [alreadySaved, setAlreadySaved] = useState(false)
+  const [info, setInfo] = useState<string | null>(null)
   const [savedRecords, setSavedRecords] = useState<AcademicRecordResponse[]>([])
+  const [requiredLevels, setRequiredLevels] = useState<RequiredAcademicLevels | null>(
+    null,
+  )
   const [draft, setDraft] = useState<DraftRecord | null>(null)
   const [docPanelFor, setDocPanelFor] = useState<string | null>(null)
   const [docType, setDocType] = useState<AcademicDocumentType>('MARKSHEET')
   const [uploadingKey, setUploadingKey] = useState<string | null>(null)
+
+  async function refreshRequirements() {
+    const levels = await getRequiredAcademicLevels(applicantId).catch(() => null)
+    setRequiredLevels(levels)
+    return levels
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -89,10 +109,13 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
       setLoading(true)
       setError(null)
       try {
-        const data = await getAcademicStep(applicantId)
+        const [data, levels] = await Promise.all([
+          getAcademicStep(applicantId),
+          getRequiredAcademicLevels(applicantId).catch(() => null),
+        ])
         if (cancelled) return
-        setAlreadySaved(data.academicStepSaved)
-        setSavedRecords(data.records ?? [])
+        setSavedRecords(Array.isArray(data.records) ? data.records : [])
+        setRequiredLevels(levels)
       } catch (err: unknown) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Unable to load academic details.')
@@ -106,6 +129,54 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
       cancelled = true
     }
   }, [applicantId])
+
+  const recordList = Array.isArray(savedRecords) ? savedRecords : []
+  const usedDegreeTypes = new Set(
+    recordList.map(record => record.degreeType.trim().toUpperCase()),
+  )
+  const availableDegreeOptions = DEGREE_TYPE_OPTIONS.filter(option => {
+    if (draft?.id && draft.degreeType.trim().toUpperCase() === option.value) {
+      return true
+    }
+    return !usedDegreeTypes.has(option.value)
+  })
+
+  function nextMissingDegreeType(
+    records: AcademicRecordResponse[] | null | undefined,
+    levels: RequiredAcademicLevels | null,
+  ) {
+    const list = Array.isArray(records) ? records : []
+    const used = new Set(list.map(record => record.degreeType.trim().toUpperCase()))
+    const fromRequired = levels?.missingAcademicCodes?.find(
+      code => !used.has(code.trim().toUpperCase()),
+    )
+    if (fromRequired) return fromRequired.trim().toUpperCase()
+    return DEGREE_TYPE_OPTIONS.find(option => !used.has(option.value))?.value ?? null
+  }
+
+  function startNewDraft(
+    records?: AcademicRecordResponse[],
+    levels?: RequiredAcademicLevels | null,
+  ) {
+    setError(null)
+    setInfo(null)
+    const nextType = nextMissingDegreeType(
+      Array.isArray(records) ? records : savedRecords,
+      levels === undefined ? requiredLevels : levels,
+    )
+    if (!nextType) {
+      setError('All available qualification levels have already been added.')
+      return
+    }
+    setDraft(emptyDraft(nextType))
+  }
+
+  function sanitizeMarkInput(value: string) {
+    const cleaned = value.replace(/[^\d.]/g, '')
+    const parts = cleaned.split('.')
+    if (parts.length <= 1) return cleaned
+    return `${parts[0]}.${parts.slice(1).join('').slice(0, 2)}`
+  }
 
   function patchDraft(patch: Partial<DraftRecord>) {
     setDraft(prev => {
@@ -124,8 +195,7 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
     })
   }
 
-  async function handleSaveDraft() {
-    if (!draft) return
+  function validateDraft(record: DraftRecord): string | null {
     const required: Array<keyof AcademicRecordFields> = [
       'degreeType',
       'rollNumber',
@@ -138,15 +208,49 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
       'marksOrGpaTotal',
     ]
     for (const key of required) {
-      if (!String(draft[key] ?? '').trim()) {
-        setError('Please complete all required fields before saving this qualification.')
-        return
+      if (!String(record[key] ?? '').trim()) {
+        return 'Please complete all required fields before saving this qualification.'
       }
+    }
+    if (record.boardOrInstitution.trim() === OTHER_BOARD) {
+      return 'Please enter the university / institution name.'
+    }
+    if (
+      !record.id &&
+      usedDegreeTypes.has(record.degreeType.trim().toUpperCase())
+    ) {
+      return `You already added ${academicDegreeLabel(record.degreeType)}. Edit that qualification or add the next required level.`
+    }
+    const obtained = Number(record.marksOrGpaObtained.trim())
+    const total = Number(record.marksOrGpaTotal.trim())
+    if (!Number.isFinite(obtained) || obtained < 0) {
+      return 'Obtained marks / GPA must be a valid number (0 or greater).'
+    }
+    if (!Number.isFinite(total) || total <= 0) {
+      return 'Total marks / GPA must be a valid number greater than 0.'
+    }
+    if (obtained > total) {
+      return 'Obtained marks / GPA cannot be greater than total marks / GPA.'
+    }
+    const percentage = calcPercentage(record.marksOrGpaObtained, record.marksOrGpaTotal)
+    if (percentage <= 0 && obtained > 0) {
+      return 'Unable to calculate percentage from the marks entered.'
+    }
+    return null
+  }
+
+  async function handleSaveDraft() {
+    if (!draft) return
+    const validationError = validateDraft(draft)
+    if (validationError) {
+      setError(validationError)
+      return
     }
 
     setSaving(true)
     setError(null)
     try {
+      const percentage = calcPercentage(draft.marksOrGpaObtained, draft.marksOrGpaTotal)
       const payload: AcademicRecordFields = {
         degreeType: draft.degreeType.trim(),
         rollNumber: draft.rollNumber.trim(),
@@ -157,8 +261,7 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
         grade: draft.grade.trim(),
         marksOrGpaObtained: draft.marksOrGpaObtained.trim(),
         marksOrGpaTotal: draft.marksOrGpaTotal.trim(),
-        percentage:
-          draft.percentage || calcPercentage(draft.marksOrGpaObtained, draft.marksOrGpaTotal),
+        percentage,
       }
 
       let result
@@ -183,41 +286,48 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
                 },
           ),
         })
-      } else if (!alreadySaved || savedRecords.length === 0) {
-        result = await createAcademicStep(applicantId, { records: [payload] })
       } else {
-        const existingPayloads = savedRecords.map(record => ({
-          degreeType: record.degreeType,
-          rollNumber: String(record.rollNumber ?? ''),
-          qualificationName: record.qualificationName,
-          boardOrInstitution: record.boardOrInstitution,
-          passingYear: record.passingYear,
-          division: record.division,
-          grade: record.grade,
-          marksOrGpaObtained: record.marksOrGpaObtained,
-          marksOrGpaTotal: record.marksOrGpaTotal,
-          percentage: record.percentage,
-        }))
-        result = await createAcademicStep(applicantId, {
-          records: [...existingPayloads, payload],
-        })
+        // POST creates the first batch, or appends additional degree types.
+        result = await createAcademicStep(applicantId, { records: [payload] })
       }
 
-      setAlreadySaved(true)
-      setSavedRecords(result.records ?? [])
-      setDraft(null)
-      if (!draft.id) {
-        const newest = result.records?.[result.records.length - 1]
-        if (newest) setDocPanelFor(newest.id)
+      const records = Array.isArray(result.records) ? result.records : []
+      setSavedRecords(records)
+      const levels = await refreshRequirements()
+      const newest = records[records.length - 1]
+      if (!draft.id && newest) setDocPanelFor(newest.id)
+
+      const nextType = nextMissingDegreeType(records, levels)
+      if (!draft.id && nextType) {
+        setDraft(emptyDraft(nextType))
+        setInfo(
+          `${academicDegreeLabel(payload.degreeType)} saved. Next: add ${academicDegreeLabel(nextType)} and upload documents for each qualification.`,
+        )
+      } else {
+        setDraft(null)
+        setInfo(
+          draft.id
+            ? 'Qualification updated.'
+            : 'All required academic records are saved. Upload documents if you have not already, then continue.',
+        )
       }
     } catch (err: unknown) {
-      setError(
+      setInfo(null)
+      const message =
         err instanceof ApiError
           ? err.message
           : err instanceof Error
             ? err.message
-            : 'Unable to save qualification.',
-      )
+            : 'Unable to save qualification.'
+      setError(message)
+      if (
+        err instanceof ApiError &&
+        (err.code === 'ACADEMIC_DEGREE_TYPE_EXISTS' ||
+          /already added/i.test(err.message))
+      ) {
+        const nextType = nextMissingDegreeType(savedRecords, requiredLevels)
+        if (nextType) setDraft(emptyDraft(nextType))
+      }
     } finally {
       setSaving(false)
     }
@@ -231,7 +341,6 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
       if (remaining.length === 0) {
         // API has no delete-all; keep local empty and block continue until one is added again.
         setSavedRecords([])
-        setAlreadySaved(false)
         if (docPanelFor === recordId) setDocPanelFor(null)
         if (draft?.id === recordId) setDraft(null)
         return
@@ -274,7 +383,6 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
       await uploadAcademicDocument(applicantId, recordId, file, docType)
       const refreshed = await getAcademicStep(applicantId)
       setSavedRecords(refreshed.records ?? [])
-      setAlreadySaved(refreshed.academicStepSaved)
     } catch (err: unknown) {
       setError(
         err instanceof ApiError
@@ -305,13 +413,41 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
     }
   }
 
-  function handleContinue() {
+  async function handleContinue() {
+    setInfo(null)
     if (savedRecords.length === 0) {
       setError('Add at least one academic qualification before continuing.')
       return
     }
     if (draft) {
       setError('Save or cancel the open qualification form before continuing.')
+      return
+    }
+    const levels = await refreshRequirements()
+    if (
+      levels &&
+      levels.requiredAcademicCodes.length > 0 &&
+      levels.missingAcademicCodes.length > 0
+    ) {
+      const nextType = levels.missingAcademicCodes[0]
+      setError(
+        `Missing required academic records: ${levels.missingAcademicCodes
+          .map(academicDegreeLabel)
+          .join(', ')}.`,
+      )
+      if (nextType) setDraft(emptyDraft(nextType))
+      return
+    }
+    const withoutDocuments = savedRecords.filter(
+      record => !(record.documents && record.documents.length > 0),
+    )
+    if (withoutDocuments.length > 0) {
+      setError(
+        `Upload at least one document for: ${withoutDocuments
+          .map(record => academicRecordTitle(record.degreeType, record.qualificationName))
+          .join(', ')}.`,
+      )
+      setDocPanelFor(withoutDocuments[0]?.id ?? null)
       return
     }
     onSaved()
@@ -332,17 +468,15 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
         <div>
           <h2 className="text-xl font-bold text-[#071759]">Academic Details</h2>
           <p className="mt-1 text-sm text-[#354a8d]">
-            Click Add Qualification to open the form. After saving, you can attach documents.
+            Add one record per qualification level. After saving, you can attach documents.
           </p>
         </div>
         {!draft ? (
           <Button
             type="button"
             className="h-10 bg-[#0c3cff] hover:bg-[#0934dc]"
-            onClick={() => {
-              setError(null)
-              setDraft(emptyDraft())
-            }}
+            onClick={() => startNewDraft()}
+            disabled={availableDegreeOptions.length === 0}
           >
             <Plus className="mr-1.5 h-4 w-4" />
             Add Qualification
@@ -350,16 +484,49 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
         ) : null}
       </div>
 
+      {requiredLevels && requiredLevels.requiredAcademicCodes.length > 0 ? (
+        <section className="rounded-xl border border-[#dbeafe] bg-[#eff6ff] px-4 py-4">
+          <h3 className="text-sm font-semibold text-[#071759]">
+            Required academic information
+          </h3>
+          <ul className="mt-3 space-y-1.5">
+            {requiredLevels.requiredAcademicCodes.map((code) => {
+              const missing = requiredLevels.missingAcademicCodes.includes(code)
+              return (
+                <li
+                  key={code}
+                  className="flex items-center justify-between gap-3 text-sm"
+                >
+                  <span className="font-medium text-[#071759]">
+                    {academicDegreeLabel(code)}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                      missing
+                        ? 'bg-[#fff7ed] text-[#c2410c]'
+                        : 'bg-[#dcfce7] text-[#166534]'
+                    }`}
+                  >
+                    {missing ? 'Required' : 'Added'}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ) : null}
+
       {savedRecords.length === 0 && !draft ? (
         <div className="rounded-xl border border-dashed border-[#dce5f6] bg-[#f8faff] px-6 py-12 text-center">
           <p className="text-sm font-medium text-[#071759]">No qualifications added yet</p>
           <p className="mt-1 text-xs text-[#6374ab]">
-            Add Matric, Intermediate, or other records one at a time.
+            Add Matric, Intermediate, Bachelor, Master, or Doctorate — one at a
+            time.
           </p>
           <Button
             type="button"
             className="mt-4 h-10 bg-[#0c3cff] hover:bg-[#0934dc]"
-            onClick={() => setDraft(emptyDraft())}
+            onClick={() => startNewDraft()}
           >
             <Plus className="mr-1.5 h-4 w-4" />
             Add Qualification
@@ -376,10 +543,11 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6374ab]">
                 Qualification {index + 1}
               </p>
-              <h3 className="mt-1 font-semibold text-[#071759]">{record.qualificationName}</h3>
+              <h3 className="mt-1 font-semibold text-[#071759]">
+                {academicRecordTitle(record.degreeType, record.qualificationName)}
+              </h3>
               <p className="mt-1 text-xs text-[#6374ab]">
-                {record.degreeType} · {record.boardOrInstitution} · {record.passingYear} ·{' '}
-                {record.percentage}%
+                {record.boardOrInstitution} · {record.passingYear} · {record.percentage}%
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -389,6 +557,7 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
                 className="h-9 border-[#dce5f6]"
                 onClick={() => {
                   setError(null)
+                  setInfo(null)
                   setDraft(draftFromRecord(record))
                 }}
               >
@@ -500,7 +669,11 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
             <button
               type="button"
               className="inline-flex items-center gap-1 text-sm text-[#6374ab]"
-              onClick={() => setDraft(null)}
+              onClick={() => {
+                setDraft(null)
+                setError(null)
+                setInfo(null)
+              }}
             >
               <X className="h-4 w-4" />
               Cancel
@@ -514,7 +687,7 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
                 onChange={e => patchDraft({ degreeType: e.target.value })}
                 className="h-10 w-full rounded-md border border-[#dce5f6] px-3 text-sm"
               >
-                {DEGREE_TYPE_OPTIONS.map(option => (
+                {availableDegreeOptions.map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -529,10 +702,9 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
               />
             </Field>
             <Field label="Board / Institution">
-              <Input
+              <BoardInstitutionFields
                 value={draft.boardOrInstitution}
-                onChange={e => patchDraft({ boardOrInstitution: e.target.value })}
-                placeholder="e.g. BISE Lahore"
+                onChange={value => patchDraft({ boardOrInstitution: value })}
               />
             </Field>
             <Field label="Roll Number">
@@ -543,13 +715,21 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
               />
             </Field>
             <Field label="Passing Year">
-              <Input
+              <select
                 value={draft.passingYear}
-                onChange={e =>
-                  patchDraft({ passingYear: e.target.value.replace(/\D/g, '').slice(0, 4) })
-                }
-                placeholder="YYYY"
-              />
+                onChange={e => patchDraft({ passingYear: e.target.value })}
+                className="h-10 w-full rounded-md border border-[#dce5f6] px-3 text-sm"
+              >
+                <option value="">Select year</option>
+                {draft.passingYear && !PASSING_YEARS.includes(draft.passingYear) ? (
+                  <option value={draft.passingYear}>{draft.passingYear}</option>
+                ) : null}
+                {PASSING_YEARS.map(year => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Division">
               <select
@@ -579,21 +759,35 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
             </Field>
             <Field label="Obtained Marks / GPA">
               <Input
+                inputMode="decimal"
                 value={draft.marksOrGpaObtained}
-                onChange={e => patchDraft({ marksOrGpaObtained: e.target.value })}
-                placeholder="e.g. 875"
+                onChange={e =>
+                  patchDraft({ marksOrGpaObtained: sanitizeMarkInput(e.target.value) })
+                }
+                placeholder="e.g. 875 or 3.5"
               />
             </Field>
             <Field label="Total Marks / GPA">
               <Input
+                inputMode="decimal"
                 value={draft.marksOrGpaTotal}
-                onChange={e => patchDraft({ marksOrGpaTotal: e.target.value })}
-                placeholder="e.g. 1100"
+                onChange={e =>
+                  patchDraft({ marksOrGpaTotal: sanitizeMarkInput(e.target.value) })
+                }
+                placeholder="e.g. 1100 or 4.0"
               />
             </Field>
-            <Field label="Percentage">
-              <Input value={String(draft.percentage || '')} readOnly className="bg-[#f8fafc]" />
-            </Field>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-[#334155]">
+                Percentage
+              </label>
+              <Input
+                value={draft.percentage ? String(draft.percentage) : ''}
+                readOnly
+                className="bg-[#f8fafc]"
+                placeholder="Calculated automatically"
+              />
+            </div>
           </div>
 
           <div className="mt-5 flex justify-end">
@@ -618,6 +812,11 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
         </div>
       ) : null}
 
+      {info ? (
+        <p className="rounded-lg border border-[#bfdbfe] bg-[#eff6ff] px-3 py-2 text-sm text-[#1d4ed8]">
+          {info}
+        </p>
+      ) : null}
       {error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -627,12 +826,57 @@ export function AcademicStep({ applicantId, onSaved, onBack }: Props) {
         <Button
           type="button"
           disabled={saving}
-          onClick={handleContinue}
+          onClick={() => void handleContinue()}
           className="h-11 bg-[#0c3cff] px-5 hover:bg-[#0934dc]"
         >
           Save & Continue
         </Button>
       </div>
+    </div>
+  )
+}
+
+function BoardInstitutionFields({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (value: string) => void
+}) {
+  const isCustom =
+    value === OTHER_BOARD ||
+    (!!value && !(STANDARD_BOARDS as readonly string[]).includes(value))
+  const selectValue = !value
+    ? ''
+    : (STANDARD_BOARDS as readonly string[]).includes(value)
+      ? value
+      : OTHER_BOARD
+
+  return (
+    <div className="space-y-2">
+      <select
+        value={selectValue}
+        onChange={e => {
+          const next = e.target.value
+          onChange(next === OTHER_BOARD ? OTHER_BOARD : next)
+        }}
+        className="h-10 w-full rounded-md border border-[#dce5f6] px-3 text-sm"
+      >
+        <option value="">Select board / institution</option>
+        {STANDARD_BOARDS.map(board => (
+          <option key={board} value={board}>
+            {board}
+          </option>
+        ))}
+        <option value={OTHER_BOARD}>{OTHER_BOARD}</option>
+      </select>
+      {isCustom ? (
+        <Input
+          value={value === OTHER_BOARD ? '' : value}
+          onChange={e => onChange(e.target.value.trim() ? e.target.value : OTHER_BOARD)}
+          placeholder="Enter university / institution name"
+        />
+      ) : null}
     </div>
   )
 }

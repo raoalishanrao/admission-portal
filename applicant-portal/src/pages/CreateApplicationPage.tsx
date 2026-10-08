@@ -16,6 +16,7 @@ import { ApiError } from '@/lib/api/client'
 import {
   getApplicantIntake,
   getApplicantOffering,
+  startOfferingApplication,
 } from '@/lib/api/admissions'
 import { getProgrammeStep } from '@/lib/api/applications'
 import { registerApplicant } from '@/lib/api/registration'
@@ -185,6 +186,9 @@ export function CreateApplicationPage() {
         // Only auto-start a brand-new application when none exists yet.
         if (identity?.mobileNumber && identity.applicantName) {
           try {
+            if (offeringId) {
+              await startOfferingApplication(offeringId)
+            }
             const result = await createApplicationForUser({
               intakeId: currentIntakeId,
               applicantName: identity.applicantName,
@@ -241,6 +245,9 @@ export function CreateApplicationPage() {
 
     setSaving(true)
     try {
+      if (isAuthenticated && offeringId) {
+        await startOfferingApplication(offeringId)
+      }
       const identityValue = identity.trim()
       const result = await createApplicationForUser({
         intakeId: intake.id,
