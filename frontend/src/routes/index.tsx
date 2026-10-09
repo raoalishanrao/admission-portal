@@ -14,6 +14,7 @@ import { ApplicationFeesPage } from '@/pages/ApplicationFeesPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { AuditActivityPage } from '@/pages/AuditActivityPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { AttendanceQrPage } from '@/pages/AttendanceQrPage'
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -21,6 +22,7 @@ export const router = createBrowserRouter([
     path: '/',
     element: <ProtectedRoute />,
     children: [
+      { path: 'attendance/qr/:qrToken', element: <AttendanceQrPage /> },
       {
         element: <AppLayout />,
         children: [

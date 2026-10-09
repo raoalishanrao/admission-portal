@@ -155,6 +155,7 @@ export function ReviewStep({ applicantId, applicationReference, onBack, onSubmit
     setError(null)
     try {
       const result = await submitApplication(applicantId)
+
       onSubmitted({
         applicationStatus: result.applicationStatus,
         submissionDate: result.submissionDate,

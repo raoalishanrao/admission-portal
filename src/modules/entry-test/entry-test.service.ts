@@ -73,7 +73,7 @@ export class EntryTestService {
     this.staff(user); this.validateTimes(dto.reportingTime, dto.testTime);
     const centre = await this.requireCentre(user.tenantId, dto.testCentreId);
     if (!centre.active) throw new BusinessException('Cannot create a session at an inactive test centre', HttpStatus.UNPROCESSABLE_ENTITY, 'TEST_CENTRE_INACTIVE');
-    await this.requirePublishedIntake(user.tenantId, dto.intakeSessionId);
+    await this.requireIntake(user.tenantId, dto.intakeSessionId);
     await this.validateSessionOfferings(user.tenantId, dto.intakeSessionId, dto.offeringIds);
     const session = await this.dataSource.transaction(async (manager) => {
       const saved = await manager.getRepository(TestSessionEntity).save(manager.getRepository(TestSessionEntity).create({
@@ -122,7 +122,7 @@ export class EntryTestService {
     Object.assign(row, sessionChanges);
     const centre = await this.requireCentre(user.tenantId, row.testCentreId);
     if (!centre.active) throw new BusinessException('Session centre is inactive', HttpStatus.UNPROCESSABLE_ENTITY, 'TEST_CENTRE_INACTIVE');
-    await this.requirePublishedIntake(user.tenantId, row.intakeSessionId);
+    await this.requireIntake(user.tenantId, row.intakeSessionId);
     await this.validateSessionOfferings(user.tenantId, row.intakeSessionId, offeringIds);
     this.validateTimes(row.reportingTime, row.testTime);
     row.updatedBy = user.userId;
@@ -408,10 +408,10 @@ export class EntryTestService {
     return this.cardDto(saved);
   }
 
-  private async requirePublishedIntake(tenantId: string, intakeSessionId: string) {
+  private async requireIntake(tenantId: string, intakeSessionId: string) {
     const intake = await this.intakes.findOneBy({ id: intakeSessionId, tenantId });
-    if (!intake || intake.status !== 'PUBLISHED') {
-      throw new BusinessException('Test sessions can only be configured for a published intake', HttpStatus.UNPROCESSABLE_ENTITY, 'INTAKE_NOT_PUBLISHED');
+    if (!intake) {
+      throw new NotFoundException('Intake session not found');
     }
     return intake;
   }
@@ -419,11 +419,16 @@ export class EntryTestService {
     if (!offeringIds.length || new Set(offeringIds).size !== offeringIds.length) {
       throw new BusinessException('Choose one or more distinct offerings for this session', HttpStatus.BAD_REQUEST, 'INVALID_SESSION_OFFERINGS');
     }
+    // Intake/offering publish status is not required — sessions can be set up while still drafting.
     const offerings = await this.offerings.find({
-      where: { tenantId, id: In(offeringIds), intakeId, offeringStatus: 'PUBLISHED' },
+      where: { tenantId, id: In(offeringIds), intakeId },
     });
     if (offerings.length !== offeringIds.length) {
-      throw new BusinessException('Every selected offering must be a published offering in the session intake', HttpStatus.UNPROCESSABLE_ENTITY, 'OFFERING_NOT_IN_SESSION_INTAKE');
+      throw new BusinessException(
+        'Every selected offering must belong to the session intake',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'OFFERING_NOT_IN_SESSION_INTAKE',
+      );
     }
   }
   private async sessionDto(row: TestSessionEntity) {

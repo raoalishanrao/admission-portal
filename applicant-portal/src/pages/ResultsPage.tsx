@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { ArrowLeft, Loader2, RefreshCw, Trophy } from 'lucide-react'
+import {
+  ArrowLeft,
+  Calendar,
+  CheckCircle2,
+  ChevronRight,
+  FileText,
+  Info,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  Trophy,
+  XCircle,
+} from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { ApiError } from '@/lib/api/client'
 import { listApplicantResults } from '@/lib/api/results'
 import { formatIntakeDateTime } from '@/lib/admissions-display'
 import type { ApplicantTestResult } from '@/lib/api/types'
-
-function resultBadge(status: string) {
-  const value = status.toUpperCase()
-  if (value === 'PASS') return 'bg-[#dcfce7] text-[#166534]'
-  if (value === 'FAIL') return 'bg-[#fee2e2] text-[#b91c1c]'
-  return 'bg-[#f1f5f9] text-[#475569]'
-}
 
 function formatNumber(value: string | number | null | undefined) {
   if (value == null || value === '') return '—'
@@ -62,6 +67,134 @@ function sessionSummary(row: ApplicantTestResult) {
   }
 }
 
+function ResultStatusBadge({ status }: { status: string }) {
+  const value = status.toUpperCase()
+  if (value === 'PASS') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#dcfce7] px-3 py-1.5 text-xs font-semibold tracking-wide text-[#166534]">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        PASS
+      </span>
+    )
+  }
+  if (value === 'FAIL') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fee2e2] px-3 py-1.5 text-xs font-semibold tracking-wide text-[#b91c1c]">
+        <XCircle className="h-3.5 w-3.5" />
+        FAIL
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex rounded-full bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold tracking-wide text-[#475569]">
+      {status || '—'}
+    </span>
+  )
+}
+
+function ResultCard({ row }: { row: ApplicantTestResult }) {
+  const session = sessionSummary(row)
+  const passed = row.resultStatus?.toUpperCase() === 'PASS'
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-[#e8edf7] bg-white shadow-sm">
+      <div className="px-5 py-5 sm:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e8efff] text-[#0c3cff]">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-[#8b9bb8]">
+                Entry test result
+              </p>
+              <h2 className="mt-0.5 text-xl font-bold tracking-tight text-[#071759]">
+                Ref: {row.applicationReference}
+              </h2>
+              <p className="mt-1 text-xs text-[#6374ab]">
+                Published{' '}
+                {row.publishedAt ? formatIntakeDateTime(row.publishedAt) : '—'}
+              </p>
+            </div>
+          </div>
+          <ResultStatusBadge status={row.resultStatus} />
+        </div>
+
+        <div className="mt-5 grid gap-4 rounded-xl bg-[#f5f8ff] p-4 sm:grid-cols-2 sm:gap-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8efff] text-[#0c3cff]">
+              <Trophy className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-[#8b9bb8]">Your score</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-[#071759] sm:text-3xl">
+                {formatNumber(row.testScore)}{' '}
+                <span className="text-[#94a3b8]">/</span>{' '}
+                {formatNumber(row.totalMarks)}
+              </p>
+              <p className="mt-0.5 text-sm text-[#6374ab]">
+                {formatNumber(row.percentage)}%
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8efff] text-[#0c3cff]">
+              <Calendar className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-[#8b9bb8]">Test session</p>
+              {session ? (
+                <div className="mt-1 space-y-1.5">
+                  <p className="text-sm font-semibold text-[#071759]">
+                    {session.venue || '—'}
+                  </p>
+                  {session.schedule ? (
+                    <p className="inline-flex items-center gap-1.5 text-sm text-[#6374ab]">
+                      <Calendar className="h-3.5 w-3.5 text-[#0c3cff]" />
+                      {session.schedule}
+                    </p>
+                  ) : null}
+                  {session.room ? (
+                    <p className="inline-flex items-center gap-1.5 text-sm text-[#6374ab]">
+                      <MapPin className="h-3.5 w-3.5 text-[#0c3cff]" />
+                      Room {session.room}
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="mt-1 text-sm text-[#6374ab]">—</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl bg-[#eff6ff] px-4 py-3.5">
+          <p className="inline-flex items-center gap-2 text-sm font-semibold text-[#071759]">
+            <Info className="h-4 w-4 text-[#0c3cff]" />
+            What happens next?
+          </p>
+          <p className="mt-1.5 text-sm leading-relaxed text-[#6374ab]">
+            {passed
+              ? 'Passing the entry test does not necessarily guarantee admission. Check your application for merit and admission updates.'
+              : 'This result does not meet the pass criteria. Contact admissions if you believe there is an error, or follow any reappear guidance they publish.'}
+          </p>
+        </div>
+
+        {passed ? (
+          <Link
+            to="/offer"
+            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-[#0c3cff] px-4 text-sm font-semibold text-white shadow-sm shadow-blue-200 hover:bg-[#0934dc] sm:w-auto"
+          >
+            View admission offer
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
 export function ResultsPage() {
   const { isAuthenticated } = useAuth()
   const [loading, setLoading] = useState(true)
@@ -98,126 +231,70 @@ export function ResultsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link
-            to="/my-application"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-[#0c3cff]"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            My application
-          </Link>
-          <h1 className="mt-2 text-2xl font-bold text-[#071759] sm:text-3xl">
-            Entry test results
-          </h1>
-          <p className="mt-1 text-sm text-[#6374ab]">
-            Published scores for your applications appear here after admissions
-            releases them.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#c9d4ef] bg-white px-4 text-sm font-medium text-[#071759]"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="mt-16 flex items-center justify-center gap-2 text-sm text-[#6374ab]">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading results…
-        </div>
-      ) : error ? (
-        <div className="mt-10 rounded-xl border border-red-200 bg-white px-5 py-6 text-center">
-          <p className="text-sm font-medium text-red-700">{error}</p>
+    <div className="min-h-[70vh] bg-[#f4f6fb]">
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Link
+              to="/my-application"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-[#0c3cff]"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              My application
+            </Link>
+            <h1 className="mt-2 text-2xl font-bold text-[#071759] sm:text-3xl">
+              Entry test results
+            </h1>
+            <p className="mt-1 text-sm text-[#6374ab]">
+              Published scores for your applications appear here after admissions
+              releases them.
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => void load()}
-            className="mt-4 inline-flex h-10 items-center rounded-lg bg-[#0c3cff] px-4 text-sm font-medium text-white"
+            disabled={loading}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5def3] bg-white px-4 text-sm font-medium text-[#071759] shadow-sm"
           >
-            Try again
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
           </button>
         </div>
-      ) : rows.length === 0 ? (
-        <div className="mt-10 rounded-xl border border-[#e4e9f4] bg-white px-5 py-10 text-center">
-          <Trophy className="mx-auto h-8 w-8 text-[#94a3b8]" />
-          <p className="mt-3 text-sm font-medium text-[#071759]">
-            No published results yet
-          </p>
-          <p className="mt-1 text-sm text-[#6374ab]">
-            Check back after you sit the entry test and scores are released.
-          </p>
-        </div>
-      ) : (
-        <div className="mt-8 space-y-4">
-          {rows.map((row) => {
-            const session = sessionSummary(row)
-            return (
-              <article
-                key={row.id}
-                className="rounded-xl border border-[#e4e9f4] bg-white px-5 py-5"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-[#071759]">
-                      Ref: {row.applicationReference}
-                    </p>
-                    <p className="mt-1 text-xs text-[#6374ab]">
-                      Published{' '}
-                      {row.publishedAt
-                        ? formatIntakeDateTime(row.publishedAt)
-                        : '—'}
-                    </p>
-                  </div>
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${resultBadge(row.resultStatus)}`}
-                  >
-                    {row.resultStatus}
-                  </span>
-                </div>
-                <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                  <div>
-                    <p className="text-xs text-[#6374ab]">Score</p>
-                    <p className="mt-1 text-sm font-semibold text-[#071759]">
-                      {formatNumber(row.testScore)} /{' '}
-                      {formatNumber(row.totalMarks)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[#6374ab]">Percentage</p>
-                    <p className="mt-1 text-sm font-semibold text-[#071759]">
-                      {formatNumber(row.percentage)}%
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[#6374ab]">Test session</p>
-                    {session ? (
-                      <div className="mt-1 space-y-0.5 text-sm text-[#071759]">
-                        {session.venue ? (
-                          <p className="font-semibold">{session.venue}</p>
-                        ) : null}
-                        {session.schedule ? (
-                          <p className="text-[#354a8d]">{session.schedule}</p>
-                        ) : null}
-                        {session.room ? (
-                          <p className="text-[#6374ab]">Room {session.room}</p>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <p className="mt-1 text-sm font-medium text-[#071759]">—</p>
-                    )}
-                  </div>
-                </div>
-              </article>
-            )
-          })}
-        </div>
-      )}
+
+        {loading ? (
+          <div className="mt-16 flex items-center justify-center gap-2 text-sm text-[#6374ab]">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading results…
+          </div>
+        ) : error ? (
+          <div className="mt-10 rounded-2xl border border-red-200 bg-white px-5 py-6 text-center shadow-sm">
+            <p className="text-sm font-medium text-red-700">{error}</p>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="mt-4 inline-flex h-10 items-center rounded-xl bg-[#0c3cff] px-4 text-sm font-medium text-white"
+            >
+              Try again
+            </button>
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="mt-10 rounded-2xl border border-[#e4e9f4] bg-white px-5 py-10 text-center shadow-sm">
+            <Trophy className="mx-auto h-8 w-8 text-[#94a3b8]" />
+            <p className="mt-3 text-sm font-medium text-[#071759]">
+              No published results yet
+            </p>
+            <p className="mt-1 text-sm text-[#6374ab]">
+              Check back after you sit the entry test and scores are released.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-8 space-y-4">
+            {rows.map((row) => (
+              <ResultCard key={row.id} row={row} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

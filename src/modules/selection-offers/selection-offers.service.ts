@@ -63,6 +63,55 @@ export class SelectionOffersService {
     if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
     return null;
   }
+
+  /** Normalized workbook row → entry-test score fields (percentage derived when omitted). */
+  private resolveEntryTestRow(r: Record<string, unknown>) {
+    const ref = String(r.applicationreference ?? '').trim();
+    const score =
+      this.number(r.testscore) ??
+      this.number(r.entrytestscore) ??
+      this.number(r.entrytestmarks);
+    const total = this.number(r.totalmarks);
+    let pct = this.number(r.percentage);
+    if (
+      pct === null &&
+      score !== null &&
+      total !== null &&
+      total > 0 &&
+      score >= 0 &&
+      score <= total
+    ) {
+      pct = Math.round((score / total) * 10000) / 100;
+    }
+    const status = String(r.resultstatus ?? '').trim().toUpperCase();
+    const errors: string[] = [];
+    if (!ref) errors.push('APPLICATION_REFERENCE_REQUIRED');
+    if ((score === null) !== (total === null)) {
+      errors.push('INVALID_SCORE_TOTAL_MARKS');
+    } else if (
+      score !== null &&
+      (score < 0 || total! <= 0 || score > total!)
+    ) {
+      errors.push('INVALID_SCORE_TOTAL_MARKS');
+    }
+    if (pct === null) {
+      errors.push('ENTRY_TEST_SCORE_OR_PERCENTAGE_REQUIRED');
+    } else if (pct < 0 || pct > 100) {
+      errors.push('PERCENTAGE_MUST_BE_0_TO_100');
+    }
+    if (!['PASS', 'FAIL'].includes(status)) {
+      errors.push('RESULT_STATUS_MUST_BE_PASS_OR_FAIL');
+    }
+    return {
+      ref,
+      pct,
+      score,
+      total,
+      status,
+      remarks: r.remarks == null ? null : String(r.remarks).slice(0, 5000),
+      errors,
+    };
+  }
   async upload(ctx: RequestContext, testSessionId: string, file: UploadedWorkbookFile) {
     this.admin(ctx);
     if (!file || file.size > 10 * 1024 * 1024) throw new BadRequestException('Provide an .xlsx file up to 10 MB');
@@ -79,14 +128,18 @@ export class SelectionOffersService {
     const session = await this.db.query(`SELECT s.id, s.intake_session_id AS "intakeId" FROM test_sessions s WHERE s.id=$1 AND s.tenant_id=$2 AND s.status IN ('PUBLISHED','CLOSED')`, [testSessionId, ctx.tenantId]);
     if (!session[0]) throw new NotFoundException('Published/closed test session not found for tenant');
     const mapped = rawRows.map((raw, index) => {
-      const r = this.headers(raw); const ref = String(r.applicationreference ?? '').trim();
-      const pct = this.number(r.percentage); const score = this.number(r.testscore); const total = this.number(r.totalmarks);
-      const status = String(r.resultstatus ?? '').trim().toUpperCase(); const errors: string[] = [];
-      if (!ref) errors.push('APPLICATION_REFERENCE_REQUIRED');
-      if (pct === null || pct < 0 || pct > 100) errors.push('PERCENTAGE_MUST_BE_0_TO_100');
-      if (!['PASS','FAIL'].includes(status)) errors.push('RESULT_STATUS_MUST_BE_PASS_OR_FAIL');
-      if ((score === null) !== (total === null) || (score !== null && (score < 0 || total! <= 0 || score > total!))) errors.push('INVALID_SCORE_TOTAL_MARKS');
-      return { index, raw, ref, pct, score, total, status, remarks: r.remarks == null ? null : String(r.remarks).slice(0,5000), errors };
+      const parsed = this.resolveEntryTestRow(this.headers(raw));
+      return {
+        index,
+        raw,
+        ref: parsed.ref,
+        pct: parsed.pct,
+        score: parsed.score,
+        total: parsed.total,
+        status: parsed.status,
+        remarks: parsed.remarks,
+        errors: parsed.errors,
+      };
     });
     const duplicates = new Set<string>(); const seen = new Set<string>();
     for (const row of mapped) { if (row.ref && seen.has(row.ref)) duplicates.add(row.ref); if (row.ref) seen.add(row.ref); }

@@ -17,7 +17,12 @@ export class SelectionOffersController {
   constructor(private readonly service: SelectionOffersService) {}
 
   @Post('entry-test-results/import') @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Upload and validate an Excel test-result batch', description: 'Requires RESULT worksheet and application_reference, percentage and result_status columns. Import is staged; this does not publish results.' })
+  @ApiOperation({
+    summary: 'Upload and validate an Excel test-result batch',
+    description:
+      'Requires RESULT worksheet with application_reference, result_status (PASS|FAIL), and either entry_test_score + total_marks or percentage. ' +
+      'Entry-test percentage is derived from score/total when omitted. Merit weighting (e.g. 10% entry test) is applied later from the configured merit formula. Import is staged; this does not publish results.',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', required: ['testSessionId','file'], properties: { testSessionId: { type: 'string', format: 'uuid' }, file: { type: 'string', format: 'binary' } } } })
   @ApiWrappedCreatedResponse(ResultImportResponseDto)

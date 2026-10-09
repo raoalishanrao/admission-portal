@@ -40,6 +40,14 @@ export async function apiRequest<T>(
     }
   }
 
+  // ngrok free interstitial breaks JSON API calls from the browser without this.
+  if (
+    /ngrok(-free)?\.(app|io)/i.test(API_BASE_URL) &&
+    !requestHeaders.has('ngrok-skip-browser-warning')
+  ) {
+    requestHeaders.set('ngrok-skip-browser-warning', 'true')
+  }
+
   const response = await fetch(buildUrl(path), {
     ...rest,
     headers: requestHeaders,

@@ -53,8 +53,8 @@ export function OfferFeeChallanPage() {
   }
 
   return (
-    <div className="offer-fee-page min-h-[70vh] bg-[#f3f3f3] py-6 print:bg-white print:py-0">
-      <div className="offer-fee-toolbar mx-auto mb-4 flex max-w-[190mm] flex-wrap items-center justify-between gap-3 px-3">
+    <div className="offer-fee-page min-h-[70vh] py-6 print:bg-white print:py-0">
+      <div className="offer-fee-toolbar mx-auto mb-4 flex flex-wrap items-center justify-between gap-3 px-3">
         <div>
           <Link
             to="/offer"
@@ -67,8 +67,8 @@ export function OfferFeeChallanPage() {
             Admission fee challan
           </h1>
           <p className="mt-1 text-sm text-[#6374ab]">
-            Print and deposit at the bank, then upload your receipt on the offer
-            page to occupy your seat.
+            Print (landscape) and deposit at the bank, then upload your receipt
+            on the offer page to occupy your seat.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -93,7 +93,7 @@ export function OfferFeeChallanPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-[190mm] px-3">
+      <div className="challan-sheet-wrap mx-auto max-w-[1100px] px-3">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-20 text-sm text-[#6374ab]">
             <Loader2 className="h-4 w-4 animate-spin" />

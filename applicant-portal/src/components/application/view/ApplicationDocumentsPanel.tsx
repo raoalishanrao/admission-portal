@@ -1,40 +1,26 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   AlertTriangle,
   CheckCircle2,
-  ExternalLink,
-  FileText,
   FileUp,
-  Link2,
   Loader2,
   RefreshCw,
 } from 'lucide-react'
 import { ApiError } from '@/lib/api/client'
 import {
-  academicDocumentMatchesRequirementCode,
-  autoLinkMatchingAcademicDocuments,
-  linkAcademicDocument,
   replaceApplicantDocument,
   uploadApplicantDocument,
 } from '@/lib/api/documents'
-import { academicRecordTitle } from '@/lib/application-steps'
 import type {
-  AcademicDocumentResponse,
   AdmissionDocumentStatus,
   ApplicantDocumentRequirement,
   DocumentCompleteness,
 } from '@/lib/api/types'
 
-export type AcademicDocumentListItem = AcademicDocumentResponse & {
-  degreeType: string
-  qualificationName: string
-}
-
 type Props = {
   applicantId: string
   requirements: ApplicantDocumentRequirement[]
   completeness: DocumentCompleteness | null
-  academicDocuments?: AcademicDocumentListItem[]
   onChanged: () => Promise<void> | void
 }
 
@@ -66,73 +52,15 @@ function statusLabel(status: AdmissionDocumentStatus) {
   }
 }
 
-function linkableRequirementsForDoc(
-  doc: AcademicDocumentResponse,
-  requirements: ApplicantDocumentRequirement[],
-) {
-  return requirements.filter(
-    (req) =>
-      (req.status === 'NOT_SUBMITTED' ||
-        req.status === 'RESUBMISSION_REQUIRED') &&
-      academicDocumentMatchesRequirementCode(
-        doc.documentType,
-        req.documentTypeCode,
-      ),
-  )
-}
-
 export function ApplicationDocumentsPanel({
   applicantId,
   requirements,
   completeness,
-  academicDocuments = [],
   onChanged,
 }: Props) {
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [autoLinking, setAutoLinking] = useState(false)
-  const [linkSelection, setLinkSelection] = useState<Record<string, string>>({})
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
-  const onChangedRef = useRef(onChanged)
-  onChangedRef.current = onChanged
-  const autoLinkAttemptKey = useRef<string>('')
-
-  // Prefer link-academic for matching qualification files once requirements load.
-  useEffect(() => {
-    if (!applicantId || academicDocuments.length === 0 || requirements.length === 0) {
-      return
-    }
-    const openCount = requirements.filter(
-      (r) =>
-        r.status === 'NOT_SUBMITTED' || r.status === 'RESUBMISSION_REQUIRED',
-    ).length
-    if (openCount === 0) return
-
-    const key = `${applicantId}:${academicDocuments.map((d) => d.id).join(',')}:${requirements
-      .map((r) => `${r.offeringRequiredDocumentId}:${r.status}`)
-      .join(',')}`
-    if (autoLinkAttemptKey.current === key) return
-    autoLinkAttemptKey.current = key
-
-    let cancelled = false
-    setAutoLinking(true)
-    void autoLinkMatchingAcademicDocuments(
-      applicantId,
-      academicDocuments,
-      requirements,
-    )
-      .then(async (linked) => {
-        if (cancelled || linked <= 0) return
-        await onChangedRef.current()
-      })
-      .finally(() => {
-        if (!cancelled) setAutoLinking(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [applicantId, academicDocuments, requirements])
 
   async function handleFile(
     key: string,
@@ -173,42 +101,6 @@ export function ApplicationDocumentsPanel({
     }
   }
 
-  async function handleLinkAcademic(docId: string) {
-    const requirementId = linkSelection[docId]
-    const requirement = requirements.find(
-      (r) => r.offeringRequiredDocumentId === requirementId,
-    )
-    if (!requirement) {
-      setError('Select a matching admission document requirement to link.')
-      return
-    }
-    const ids =
-      requirement.offeringRequiredDocumentIds?.length > 0
-        ? requirement.offeringRequiredDocumentIds
-        : [requirement.offeringRequiredDocumentId]
-    setBusyKey(`link:${docId}`)
-    setError(null)
-    try {
-      await linkAcademicDocument(applicantId, docId, ids)
-      setLinkSelection((prev) => {
-        const next = { ...prev }
-        delete next[docId]
-        return next
-      })
-      await onChanged()
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Unable to link academic document.',
-      )
-    } finally {
-      setBusyKey(null)
-    }
-  }
-
   const outstanding = requirements.filter((r) => r.status === 'RESUBMISSION_REQUIRED')
 
   return (
@@ -217,8 +109,8 @@ export function ApplicationDocumentsPanel({
         <div>
           <h2 className="text-base font-semibold text-[#071759]">Admission documents</h2>
           <p className="mt-1 text-sm text-[#6374ab]">
-            Upload required documents. If admissions requests a correction, replace the file using
-            the reason shown below.
+            Upload required documents for each slot below. If admissions requests a
+            correction, replace the file using the reason shown.
           </p>
         </div>
         {completeness ? (
@@ -257,121 +149,18 @@ export function ApplicationDocumentsPanel({
         </p>
       ) : null}
 
-      {academicDocuments.length > 0 ? (
-        <div className="mt-5">
-          <h3 className="text-sm font-semibold text-[#071759]">
-            Files uploaded with your qualifications
-          </h3>
-          <p className="mt-1 text-xs text-[#6374ab]">
-            Matching marksheets, certificates, and transcripts are linked to
-            admission requirements automatically via link-academic. You can still
-            link manually if a file was not matched.
-            {autoLinking ? ' Linking…' : ''}
-          </p>
-          <ul className="mt-3 space-y-2">
-            {academicDocuments.map((doc) => {
-              const linkable = linkableRequirementsForDoc(doc, requirements)
-              const linking = busyKey === `link:${doc.id}`
-              return (
-                <li
-                  key={doc.id}
-                  className="rounded-lg border border-[#e8edf5] bg-[#f8faff] px-4 py-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <FileText className="h-4 w-4 shrink-0 text-[#0c3cff]" />
-                        <p className="font-medium text-[#071759]">
-                          {doc.originalFileName || doc.documentType}
-                        </p>
-                        <span className="rounded bg-[#e2e8f0] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[#475569]">
-                          {doc.documentType}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-[#6374ab]">
-                        {academicRecordTitle(
-                          doc.degreeType,
-                          doc.qualificationName,
-                        )}
-                        {doc.uploadedAt
-                          ? ` · Uploaded ${new Date(doc.uploadedAt).toLocaleString()}`
-                          : ''}
-                      </p>
-                    </div>
-                    {doc.downloadUrl ? (
-                      <a
-                        href={doc.downloadUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#c9d4ef] bg-white px-3 text-xs font-medium text-[#071759] hover:bg-white"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        View file
-                      </a>
-                    ) : null}
-                  </div>
-                  {linkable.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-[#e8edf5] pt-3">
-                      <label className="min-w-[12rem] flex-1 text-xs">
-                        <span className="font-medium text-[#6374ab]">
-                          Use for requirement
-                        </span>
-                        <select
-                          value={linkSelection[doc.id] || ''}
-                          onChange={(e) =>
-                            setLinkSelection((prev) => ({
-                              ...prev,
-                              [doc.id]: e.target.value,
-                            }))
-                          }
-                          className="mt-1 h-9 w-full rounded-lg border border-[#c9d4ef] bg-white px-2 text-xs text-[#071759]"
-                        >
-                          <option value="">Select…</option>
-                          {linkable.map((req) => (
-                            <option
-                              key={req.offeringRequiredDocumentId}
-                              value={req.offeringRequiredDocumentId}
-                            >
-                              {req.documentTypeName}
-                              {req.mandatory ? ' (required)' : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <button
-                        type="button"
-                        disabled={linking || !linkSelection[doc.id]}
-                        onClick={() => void handleLinkAcademic(doc.id)}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#c9d4ef] bg-white px-3 text-xs font-medium text-[#071759] hover:bg-white disabled:opacity-60"
-                      >
-                        {linking ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Link2 className="h-3.5 w-3.5" />
-                        )}
-                        Link to application
-                      </button>
-                    </div>
-                  ) : null}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      ) : null}
-
       {requirements.length === 0 ? (
         <p className="mt-6 text-sm text-[#6374ab]">
-          {academicDocuments.length > 0
-            ? 'Additional admission document slots appear here once admissions configures requirements for your selected programmes.'
-            : 'No admission document requirements are configured for your selected programmes yet. Qualification files you upload during Academic Details appear above once saved.'}
+          No admission document requirements are configured for your selected
+          programmes yet.
         </p>
       ) : (
         <ul className="mt-5 space-y-3">
           {requirements.map((req) => {
             const key = req.offeringRequiredDocumentId
             const busy = busyKey === key
-            const canUpload = req.status === 'NOT_SUBMITTED' || req.status === 'RESUBMISSION_REQUIRED'
+            const canUpload =
+              req.status === 'NOT_SUBMITTED' || req.status === 'RESUBMISSION_REQUIRED'
             const canReplace =
               !!req.document?.id &&
               (req.status === 'SUBMITTED' || req.status === 'RESUBMISSION_REQUIRED')
@@ -406,10 +195,9 @@ export function ApplicationDocumentsPanel({
                         {statusLabel(req.status)}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-[#6374ab]">
-                      {req.documentTypeCode}
-                      {req.conditionCode ? ` · ${req.conditionCode}` : ''}
-                    </p>
+                    {req.conditionCode ? (
+                      <p className="mt-1 text-xs text-[#6374ab]">{req.conditionCode}</p>
+                    ) : null}
                     {req.document?.fileName ? (
                       <p className="mt-1 text-xs text-[#354a8d]">
                         File:{' '}
@@ -427,7 +215,8 @@ export function ApplicationDocumentsPanel({
                         )}
                       </p>
                     ) : null}
-                    {req.status === 'RESUBMISSION_REQUIRED' && req.document?.resubmissionReason ? (
+                    {req.status === 'RESUBMISSION_REQUIRED' &&
+                    req.document?.resubmissionReason ? (
                       <p className="mt-2 text-sm text-[#991b1b]">
                         <span className="font-semibold">Objection: </span>
                         {req.document.resubmissionReason}

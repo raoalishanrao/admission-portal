@@ -27,4 +27,10 @@ export const API_ENDPOINTS = {
   fees: '/api/v1/admissions/fees',
   supportingInformation: '/api/v1/admissions/supporting-information',
   applicantOfferings: '/api/v1/applicant/admissions/offerings',
+  attendanceQr: (qrToken: string) =>
+    `/api/v1/admissions/attendance/qr/${encodeURIComponent(qrToken)}`,
+  attendanceQrScan: (qrToken: string) =>
+    `/api/v1/admissions/attendance/qr/${encodeURIComponent(qrToken)}/scan`,
+  markAttendance: (applicantId: string) =>
+    `/api/v1/admissions/applications/${applicantId}/attendance`,
 } as const

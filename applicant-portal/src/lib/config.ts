@@ -79,8 +79,6 @@ export const API_ENDPOINTS = {
     `/api/v1/applicants/applications/${applicantId}/processing-fee/payment`,
   processingFeeOnlinePaymentStatus: (applicantId: string) =>
     `/api/v1/applicants/applications/${applicantId}/processing-fee/payment-status`,
-  applicantDocumentLinkAcademic: (applicantId: string) =>
-    `/api/v1/applicant/applications/${applicantId}/documents/link-academic`,
   applicantAdmitCard: (applicantId: string) =>
     `/api/v1/applicant/applications/${applicantId}/admit-card`,
   applicantResults: '/api/v1/applicant/results',

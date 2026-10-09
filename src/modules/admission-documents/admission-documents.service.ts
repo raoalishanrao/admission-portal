@@ -110,7 +110,8 @@ export class AdmissionDocumentsService {
     const app = await this.requireOwned(user, applicantId); this.assertSubmitted(app); this.validateFile(file);
     const rules = await this.requireCompatibleSelectedRules(user.tenantId, applicantId, requirementIds);
     const type = await this.types.findOneBy({ id: rules[0]!.documentTypeId, active: true }); if (!type) throw new NotFoundException('Active document type not found');
-    const existingRows = await this.documents.find({ where: { tenantId: user.tenantId, applicantId, offeringRequiredDocumentId: In(requirementIds) } });
+    const expandedIds = rules.map((rule) => rule.id);
+    const existingRows = await this.documents.find({ where: { tenantId: user.tenantId, applicantId, offeringRequiredDocumentId: In(expandedIds) } });
     if (existingRows.some((row) => row.status === AdmissionDocumentStatus.VERIFIED)) throw new ConflictException('A verified document requirement cannot be replaced');
     if (existingRows.some((row) => row.status !== AdmissionDocumentStatus.NOT_SUBMITTED && row.status !== AdmissionDocumentStatus.RESUBMISSION_REQUIRED)) throw new ConflictException('A document is already submitted; use replace after it is returned for resubmission');
     return this.storeUploadForRules(user, app, rules, type, file!);
@@ -150,29 +151,93 @@ export class AdmissionDocumentsService {
     const source = await this.academicDocs.findOne({ where: { id: dto.academicDocumentId, tenantId: user.tenantId, applicantId } }); if (!source) throw new NotFoundException('Academic document not found for this applicant');
     const codeMatches = source.documentType === 'TRANSCRIPT' ? type.code === 'TRANSCRIPT' : source.documentType === 'CERTIFICATE' ? type.code.endsWith('_CERTIFICATE') || type.code === 'EQUIVALENCE_CERTIFICATE' : type.code.endsWith('_MARKSHEET');
     if (!codeMatches) throw new BusinessException('The academic document type does not match the configured offering requirements', HttpStatus.UNPROCESSABLE_ENTITY, 'DOCUMENT_TYPE_MISMATCH');
-    const existingRows = await this.documents.find({ where: { tenantId: user.tenantId, applicantId, offeringRequiredDocumentId: In(requirementIds) } });
+    const expandedIds = rules.map((rule) => rule.id);
+    const existingRows = await this.documents.find({ where: { tenantId: user.tenantId, applicantId, offeringRequiredDocumentId: In(expandedIds) } });
     if (existingRows.some((row) => row.status === AdmissionDocumentStatus.VERIFIED)) throw new ConflictException('A document requirement is already verified');
     if (existingRows.some((row) => row.status !== AdmissionDocumentStatus.NOT_SUBMITTED && row.status !== AdmissionDocumentStatus.RESUBMISSION_REQUIRED)) throw new ConflictException('A document is already submitted; use the replacement flow after it is returned');
     const fileRecord = this.documentFiles.create({ tenantId: user.tenantId, applicantId, documentTypeId: type.id, sourceModule: AdmissionDocumentSource.F002, sourceDocumentId: source.id, fileReference: null, fileName: source.originalFileName, mimeType: source.mimeType, fileSizeBytes: source.fileSize == null ? null : String(source.fileSize), checksumSha256: null });
     return this.createRequirementLinks(user, app, rules, type, fileRecord, existingRows, 'UPLOADED');
   }
   async completeness(user: AuthUser, applicantId: string) {
-    const requirements = await this.applicantRequirements(user, applicantId); const blocking = requirements.flatMap((r: any) => r.requirementStatuses).filter((r: any) => r.mandatory || r.conditionCode);
+    // Count grouped slots (same document type across offerings = one), matching the applicant UI.
+    const requirements = await this.applicantRequirements(user, applicantId);
+    const blocking = requirements.filter((r: any) => r.mandatory || r.conditionCode);
     const verifiedCount = blocking.filter((r: any) => r.status === AdmissionDocumentStatus.VERIFIED).length;
     return { applicantId, complete: blocking.length === verifiedCount, requiredCount: blocking.length, verifiedCount, requirements };
   }
 
   async reviewCompleteness(tenantId: string, applicantId: string) {
     const selected = await this.selectedOfferingIds(tenantId, applicantId);
-    const rules = selected.length ? await this.requirements.find({ where: { tenantId, programmeOfferingId: In(selected), active: true } }) : [];
-    const blocking = rules.filter(r => r.mandatory || Boolean(r.conditionCode));
-    const docs = blocking.length ? await this.documents.find({ where: { tenantId, applicantId, offeringRequiredDocumentId: In(blocking.map(r => r.id)) } }) : [];
-    const byRequirement = new Map(docs.map(d => [d.offeringRequiredDocumentId, d]));
-    const outstanding = blocking.filter(r => byRequirement.get(r.id)?.status !== AdmissionDocumentStatus.VERIFIED);
-    return { complete: outstanding.length === 0, requiredCount: blocking.length, verifiedCount: blocking.length - outstanding.length, outstandingRequirementIds: outstanding.map(r => r.id) };
+    const rules = selected.length
+      ? await this.requirements.find({
+          where: { tenantId, programmeOfferingId: In(selected), active: true },
+        })
+      : [];
+    // Same grouping as applicantRequirements: one slot per document type (+ condition)
+    // across selected programmes, so 2 programmes × same marksheet = 1 required item.
+    const groups = new Map<string, OfferingRequiredDocumentEntity[]>();
+    for (const rule of rules) {
+      const key = `${rule.documentTypeId}:${rule.conditionCode?.trim().toUpperCase() ?? ''}`;
+      groups.set(key, [...(groups.get(key) ?? []), rule]);
+    }
+    const blockingGroups = [...groups.values()].filter((group) =>
+      group.some((rule) => rule.mandatory || Boolean(rule.conditionCode)),
+    );
+    const docs = rules.length
+      ? await this.documents.find({
+          where: {
+            tenantId,
+            applicantId,
+            offeringRequiredDocumentId: In(rules.map((r) => r.id)),
+          },
+        })
+      : [];
+    const byRequirement = new Map(docs.map((d) => [d.offeringRequiredDocumentId, d]));
+    const outstandingRequirementIds: string[] = [];
+    let verifiedCount = 0;
+    for (const group of blockingGroups) {
+      const members = group.filter((rule) => rule.mandatory || Boolean(rule.conditionCode));
+      const allVerified = members.every(
+        (rule) => byRequirement.get(rule.id)?.status === AdmissionDocumentStatus.VERIFIED,
+      );
+      if (allVerified) {
+        verifiedCount += 1;
+      } else {
+        for (const rule of members) {
+          if (byRequirement.get(rule.id)?.status !== AdmissionDocumentStatus.VERIFIED) {
+            outstandingRequirementIds.push(rule.id);
+          }
+        }
+      }
+    }
+    return {
+      complete: outstandingRequirementIds.length === 0,
+      requiredCount: blockingGroups.length,
+      verifiedCount,
+      outstandingRequirementIds,
+    };
   }
 
-  async staffApplicationDocuments(user: RequestContext, applicantId: string) { this.assertStaff(user); const app = await this.applications.findOneBy({ id: applicantId, tenantId: user.tenantId }); if (!app) throw new NotFoundException('Application not found'); const rows = await this.documents.find({ where: { tenantId: user.tenantId, applicantId }, order: { createdAt: 'ASC' } }); return Promise.all(this.uniqueFileRows(rows).map((row) => this.getDocumentDto(row))); }
+  /**
+   * F004 staff view — only rows in applicant_documents.
+   * Academic (F002) files appear here after applicant link-academic / F004 upload
+   * against offering required documents configured by admissions.
+   */
+  async staffApplicationDocuments(user: RequestContext, applicantId: string) {
+    this.assertStaff(user);
+    const app = await this.applications.findOneBy({
+      id: applicantId,
+      tenantId: user.tenantId,
+    });
+    if (!app) throw new NotFoundException('Application not found');
+    const rows = await this.documents.find({
+      where: { tenantId: user.tenantId, applicantId },
+      order: { createdAt: 'ASC' },
+    });
+    return Promise.all(
+      this.uniqueFileRows(rows).map((row) => this.getDocumentDto(row)),
+    );
+  }
   async pending(user: RequestContext) { this.assertStaff(user); const rows = await this.documents.find({ where: { tenantId: user.tenantId, status: AdmissionDocumentStatus.SUBMITTED }, order: { submittedAt: 'ASC' } }); return Promise.all(this.uniqueFileRows(rows).map(r => this.getDocumentDto(r))); }
   async exceptions(user: RequestContext) { this.assertStaff(user); const rows = await this.documents.find({ where: { tenantId: user.tenantId, status: In([AdmissionDocumentStatus.SUBMITTED, AdmissionDocumentStatus.RESUBMISSION_REQUIRED]) }, order: { updatedAt: 'ASC' } }); return Promise.all(this.uniqueFileRows(rows).map(r => this.getDocumentDto(r))); }
   async verify(user: RequestContext, id: string) { this.assertStaff(user); const row = await this.requireDocument(user.tenantId, undefined, id); const linked = row.documentFileId ? await this.documents.find({ where: { tenantId: user.tenantId, applicantId: row.applicantId, documentFileId: row.documentFileId } }) : [row]; if (!linked.length || linked.some((item) => item.status !== AdmissionDocumentStatus.SUBMITTED)) throw new ConflictException('All linked requirements must be submitted before the shared document can be verified'); const now = new Date(); await this.dataSource.transaction(async (manager) => { for (const item of linked) { const from = item.status; item.status = AdmissionDocumentStatus.VERIFIED; item.verifiedBy = user.userId; item.verifiedAt = now; item.resubmissionReason = null; const saved = await manager.getRepository(ApplicantDocumentEntity).save(item); await manager.getRepository(DocumentVerificationAuditEntity).save(manager.getRepository(DocumentVerificationAuditEntity).create({ tenantId: user.tenantId, applicantDocumentId: saved.id, action: 'VERIFIED', fromStatus: from, toStatus: saved.status, reason: null, actedBy: user.userId })); } }); return Promise.all(linked.map((item) => this.getDocumentDto(item))); }
@@ -224,30 +289,111 @@ export class AdmissionDocumentsService {
     const max = Number(process.env.ADMISSION_DOCUMENT_MAX_BYTES || 10 * 1024 * 1024); if (file.size > max) throw new BusinessException('Document exceeds the configured maximum file size', HttpStatus.PAYLOAD_TOO_LARGE, 'FILE_TOO_LARGE');
   }
   private async requireCompatibleSelectedRules(tenantId: string, applicantId: string, ids: string[]) {
-    if (!ids.length || new Set(ids).size !== ids.length) throw new BusinessException('Provide one or more unique offering requirement IDs', HttpStatus.BAD_REQUEST, 'DOCUMENT_REQUIREMENTS_REQUIRED');
-    const rules = await this.requirements.find({ where: { id: In(ids), tenantId, active: true } });
-    if (rules.length !== ids.length) throw new BusinessException('One or more active document requirements were not found', HttpStatus.UNPROCESSABLE_ENTITY, 'INVALID_DOCUMENT_REQUIREMENT');
-    const selected = await this.selectedOfferingIds(tenantId, applicantId);
-    if (rules.some((rule) => !selected.includes(rule.programmeOfferingId))) throw new BusinessException('Every document requirement must belong to an offering selected by this applicant', HttpStatus.UNPROCESSABLE_ENTITY, 'DOCUMENT_REQUIREMENT_NOT_SELECTED');
-    const first = rules[0]!; const condition = first.conditionCode?.trim().toUpperCase() ?? null;
-    if (rules.some((rule) => rule.documentTypeId !== first.documentTypeId || (rule.conditionCode?.trim().toUpperCase() ?? null) !== condition)) throw new BusinessException('A shared upload can only cover requirements with the same document type and condition', HttpStatus.UNPROCESSABLE_ENTITY, 'INCOMPATIBLE_DOCUMENT_REQUIREMENTS');
-    const equivalentCandidates = selected.length ? await this.requirements.find({ where: { tenantId, programmeOfferingId: In(selected), documentTypeId: first.documentTypeId, active: true } }) : [];
-    const equivalentIds = equivalentCandidates.filter((rule) => (rule.conditionCode?.trim().toUpperCase() ?? null) === condition).map((rule) => rule.id);
-    if (equivalentIds.some((id) => !ids.includes(id))) throw new BusinessException('Include all equivalent selected-offering requirement IDs so one file covers the complete matching group', HttpStatus.UNPROCESSABLE_ENTITY, 'SHARED_DOCUMENT_REQUIREMENTS_INCOMPLETE');
-    const selectedType = await this.types.findOneBy({ id: first.documentTypeId, active: true }); if (!selectedType) throw new NotFoundException('Active document type not found');
-    const oldRows = await this.documents.find({ where: { tenantId, applicantId, offeringRequiredDocumentId: In(ids) } });
-    const oldFileIds = [...new Set(oldRows.map((row) => row.documentFileId).filter((id): id is string => Boolean(id)))];
-    for (const oldFileId of oldFileIds) {
-      const allLinked = await this.documents.find({ where: { tenantId, applicantId, documentFileId: oldFileId } });
-      if (allLinked.some((row) => !ids.includes(row.offeringRequiredDocumentId))) throw new BusinessException('Include every requirement linked to the returned shared file when replacing it', HttpStatus.UNPROCESSABLE_ENTITY, 'SHARED_DOCUMENT_REQUIREMENTS_INCOMPLETE');
+    if (!ids.length || new Set(ids).size !== ids.length) {
+      throw new BusinessException(
+        'Provide one or more unique offering requirement IDs',
+        HttpStatus.BAD_REQUEST,
+        'DOCUMENT_REQUIREMENTS_REQUIRED',
+      );
     }
-    return rules;
+    const provided = await this.requirements.find({
+      where: { id: In(ids), tenantId, active: true },
+    });
+    if (provided.length !== ids.length) {
+      throw new BusinessException(
+        'One or more active document requirements were not found',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'INVALID_DOCUMENT_REQUIREMENT',
+      );
+    }
+    const selected = await this.selectedOfferingIds(tenantId, applicantId);
+    if (provided.some((rule) => !selected.includes(rule.programmeOfferingId))) {
+      throw new BusinessException(
+        'Every document requirement must belong to an offering selected by this applicant',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'DOCUMENT_REQUIREMENT_NOT_SELECTED',
+      );
+    }
+    const first = provided[0]!;
+    const condition = first.conditionCode?.trim().toUpperCase() ?? null;
+    if (
+      provided.some(
+        (rule) =>
+          rule.documentTypeId !== first.documentTypeId ||
+          (rule.conditionCode?.trim().toUpperCase() ?? null) !== condition,
+      )
+    ) {
+      throw new BusinessException(
+        'A shared upload can only cover requirements with the same document type and condition',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'INCOMPATIBLE_DOCUMENT_REQUIREMENTS',
+      );
+    }
+    // Expand to every matching selected-offering requirement so one file covers all programmes.
+    const equivalent =
+      selected.length > 0
+        ? (
+            await this.requirements.find({
+              where: {
+                tenantId,
+                programmeOfferingId: In(selected),
+                documentTypeId: first.documentTypeId,
+                active: true,
+              },
+            })
+          ).filter(
+            (rule) => (rule.conditionCode?.trim().toUpperCase() ?? null) === condition,
+          )
+        : provided;
+    const expandedIds = equivalent.map((rule) => rule.id);
+    const selectedType = await this.types.findOneBy({
+      id: first.documentTypeId,
+      active: true,
+    });
+    if (!selectedType) throw new NotFoundException('Active document type not found');
+    const oldRows = await this.documents.find({
+      where: {
+        tenantId,
+        applicantId,
+        offeringRequiredDocumentId: In(expandedIds),
+      },
+    });
+    const oldFileIds = [
+      ...new Set(
+        oldRows
+          .map((row) => row.documentFileId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    for (const oldFileId of oldFileIds) {
+      const allLinked = await this.documents.find({
+        where: { tenantId, applicantId, documentFileId: oldFileId },
+      });
+      if (
+        allLinked.some((row) => !expandedIds.includes(row.offeringRequiredDocumentId))
+      ) {
+        throw new BusinessException(
+          'Include every requirement linked to the returned shared file when replacing it',
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          'SHARED_DOCUMENT_REQUIREMENTS_INCOMPLETE',
+        );
+      }
+    }
+    return equivalent;
   }
   private async selectedOfferingIds(tenantId: string, applicantId: string) { const rows = await this.options.find({ where: { tenantId, applicantId } }); return rows.map(x => x.programmeOfferingId); }
   private async requireOffering(tenantId: string, id: string) { const row = await this.offerings.findOneBy({ id, tenantId }); if (!row) throw new NotFoundException('Programme offering not found'); return row; }
   private assertOfferingEditable(row: ProgrammeOfferingEntity) { if (!EDITABLE_OFFERING_STATUSES.includes(row.offeringStatus as any)) throw new ConflictException('Document requirements can only be configured while the offering is editable'); }
   private async requireOwned(user: AuthUser, applicantId: string) { const row = await this.applications.findOneBy({ id: applicantId, tenantId: user.tenantId }); if (!row) throw new NotFoundException('Application not found'); if (row.iamUserId !== user.userId) throw new ForbiddenException('You do not own this application'); return row; }
-  private assertSubmitted(app: ApplicationEntity) { if (!['SUBMITTED','COMPLETE'].includes(app.applicationStatus)) throw new BusinessException('Application must be submitted before document actions', HttpStatus.CONFLICT, 'APPLICATION_NOT_SUBMITTED'); }
+  private assertSubmitted(app: ApplicationEntity) {
+    if (!['SUBMITTED', 'COMPLETE', 'APPROVED'].includes(app.applicationStatus)) {
+      throw new BusinessException(
+        'Application must be submitted before document actions',
+        HttpStatus.CONFLICT,
+        'APPLICATION_NOT_SUBMITTED',
+      );
+    }
+  }
   private async requireDocument(tenantId: string, applicantId: string | undefined, id: string) { const where: any = { id, tenantId }; if (applicantId) where.applicantId = applicantId; const row = await this.documents.findOneBy(where); if (!row) throw new NotFoundException('Applicant document not found'); return row; }
   private uniqueFileRows(rows: ApplicantDocumentEntity[]) { const seen = new Set<string>(); return rows.filter((row) => { const key = row.documentFileId ?? row.id; if (seen.has(key)) return false; seen.add(key); return true; }); }
   private async getDocumentDto(row: ApplicantDocumentEntity) { const type = await this.types.findOneBy({ id: row.documentTypeId }); if (!type) throw new NotFoundException('Document type not found'); return this.toDto(row, type); }

@@ -115,7 +115,18 @@ export class MeritFormulasService {
         ),
       );
 
-      return this.getTemplate(ctx, saved.id);
+      // Load via the same transaction manager — templatesRepo would miss the
+      // uncommitted row and return 404.
+      const created = await manager.findOne(MeritFormulaTemplateEntity, {
+        where: { id: saved.id, tenantId: ctx.tenantId },
+        relations: { components: true },
+      });
+      if (!created) {
+        throw new NotFoundException(
+          `Merit formula template ${saved.id} not found`,
+        );
+      }
+      return this.toTemplateResponse(created);
     });
   }
 
@@ -226,7 +237,16 @@ export class MeritFormulasService {
         );
       }
 
-      return this.getTemplate(ctx, entity.id);
+      const updated = await manager.findOne(MeritFormulaTemplateEntity, {
+        where: { id: entity.id, tenantId: ctx.tenantId },
+        relations: { components: true },
+      });
+      if (!updated) {
+        throw new NotFoundException(
+          `Merit formula template ${entity.id} not found`,
+        );
+      }
+      return this.toTemplateResponse(updated);
     });
   }
 
