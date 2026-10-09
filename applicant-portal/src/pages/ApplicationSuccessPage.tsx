@@ -35,6 +35,7 @@ export function ApplicationSuccessPage() {
       ({
         programme: true,
         academic: true,
+        documents: true,
         profile: true,
         declaration: true,
         review: true,

@@ -336,18 +336,6 @@ export function ReviewStep({ applicantId, applicationReference, onBack, onSubmit
                       }
                     />
                   </div>
-                  {record.documents?.length ? (
-                    <p className="mt-2 text-xs text-[#6374ab]">
-                      Documents:{' '}
-                      {record.documents
-                        .map(
-                          doc =>
-                            doc.originalFileName ||
-                            doc.documentType.toLowerCase(),
-                        )
-                        .join(', ')}
-                    </p>
-                  ) : null}
                 </div>
               ))}
             </div>

@@ -15,6 +15,7 @@ import { ProgrammeOfferingEntity } from '../../database/entities/programme-offer
 import { OfferingDeclarationEntity } from '../../database/entities/offering-declaration.entity.js';
 import { StorageModule } from '../../integrations/storage/storage.module.js';
 import { AcademicLevelRequirementsModule } from '../academic-level-requirements/academic-level-requirements.module.js';
+import { AdmissionDocumentsModule } from '../admission-documents/admission-documents.module.js';
 import { ApplicantApplicationsController } from './applicant-applications.controller.js';
 import { ApplicantApplicationsService } from './applicant-applications.service.js';
 
@@ -22,6 +23,7 @@ import { ApplicantApplicationsService } from './applicant-applications.service.j
   imports: [
     StorageModule,
     AcademicLevelRequirementsModule,
+    AdmissionDocumentsModule,
     TypeOrmModule.forFeature([
       ApplicationEntity,
       ApplicationAcademicInformationEntity,

@@ -842,8 +842,7 @@ export function SubmittedApplicationPage() {
                         </th>
                         <th className="pb-2 pr-4 font-semibold">Roll number</th>
                         <th className="pb-2 pr-4 font-semibold">Passing year</th>
-                        <th className="pb-2 pr-4 font-semibold">Marks / GPA</th>
-                        <th className="pb-2 font-semibold">Files</th>
+                        <th className="pb-2 font-semibold">Marks / GPA</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -867,38 +866,9 @@ export function SubmittedApplicationPage() {
                           <td className="py-3 pr-4 text-[#354a8d]">
                             {record.passingYear || '—'}
                           </td>
-                          <td className="py-3 pr-4 text-[#354a8d]">
+                          <td className="py-3 text-[#354a8d]">
                             {record.marksOrGpaObtained} /{' '}
                             {record.marksOrGpaTotal}
-                          </td>
-                          <td className="py-3">
-                            {record.documents?.length ? (
-                              <div className="flex flex-col gap-1">
-                                {record.documents.map((doc) =>
-                                  doc.downloadUrl ? (
-                                    <a
-                                      key={doc.id}
-                                      href={doc.downloadUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex items-center gap-1 text-xs font-medium text-[#0c3cff] hover:underline"
-                                    >
-                                      {doc.documentType || 'File'}
-                                      <ExternalLink className="h-3 w-3" />
-                                    </a>
-                                  ) : (
-                                    <span
-                                      key={doc.id}
-                                      className="text-xs text-[#8b9bb8]"
-                                    >
-                                      {doc.documentType || 'File'}
-                                    </span>
-                                  ),
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-[#8b9bb8]">—</span>
-                            )}
                           </td>
                         </tr>
                       ))}

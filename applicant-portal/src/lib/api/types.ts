@@ -371,6 +371,7 @@ export type SubmitApplicationResponse = {
 export type ApplicationStepId =
   | 'programme'
   | 'academic'
+  | 'documents'
   | 'profile'
   | 'declaration'
   | 'review'

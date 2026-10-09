@@ -19,11 +19,18 @@ export const APPLICATION_STEPS: Array<{
     number: 2,
     title: 'Academic Details',
     shortTitle: 'Academic',
-    description: 'Add qualifications and supporting documents.',
+    description: 'Add qualification information (board, marks, year) for each required level.',
+  },
+  {
+    id: 'documents',
+    number: 3,
+    title: 'Admission Documents',
+    shortTitle: 'Documents',
+    description: 'Upload required admission document files for your selected programmes.',
   },
   {
     id: 'profile',
-    number: 3,
+    number: 4,
     title: 'Personal Information',
     shortTitle: 'Personal',
     description:
@@ -31,14 +38,14 @@ export const APPLICATION_STEPS: Array<{
   },
   {
     id: 'declaration',
-    number: 4,
+    number: 5,
     title: 'Declarations',
     shortTitle: 'Declarations',
     description: 'Review and accept the required declarations.',
   },
   {
     id: 'review',
-    number: 5,
+    number: 6,
     title: 'Review & Submit',
     shortTitle: 'Review',
     description: 'Confirm your application and submit for review.',

@@ -5,6 +5,7 @@ import { ApplicationSidebar } from '@/components/application/ApplicationSidebar'
 import { ApplicationStepper } from '@/components/application/ApplicationStepper'
 import { AcademicStep } from '@/components/application/steps/AcademicStep'
 import { DeclarationStep } from '@/components/application/steps/DeclarationStep'
+import { DocumentsStep } from '@/components/application/steps/DocumentsStep'
 import { ProgrammeStep } from '@/components/application/steps/ProgrammeStep'
 import { ProfileStep } from '@/components/application/steps/ProfileStep'
 import { ReviewStep } from '@/components/application/steps/ReviewStep'
@@ -18,6 +19,7 @@ import {
   getProgrammeStep,
 } from '@/lib/api/applications'
 import { getApplicantIntake, getApplicantOffering } from '@/lib/api/admissions'
+import { getDocumentRequirements } from '@/lib/api/documents'
 import {
   getApplicationBindingByApplicantId,
   submittedApplicationPath,
@@ -47,22 +49,38 @@ export function ApplicationFlowPage() {
 
   const refreshProgress = useCallback(async () => {
     if (!applicantId) return
-    const [programme, academic, profile, declaration, declarationTexts] = await Promise.all([
-      getProgrammeStep(applicantId).catch(() => null),
-      getAcademicStep(applicantId).catch(() => null),
-      getProfileStep(applicantId).catch(() => null),
-      getDeclarationStep(applicantId).catch(() => null),
-      getDeclarationTexts(applicantId).catch(() => []),
-    ])
+    const [programme, academic, profile, declaration, declarationTexts, docReqs] =
+      await Promise.all([
+        getProgrammeStep(applicantId).catch(() => null),
+        getAcademicStep(applicantId).catch(() => null),
+        getProfileStep(applicantId).catch(() => null),
+        getDeclarationStep(applicantId).catch(() => null),
+        getDeclarationTexts(applicantId).catch(() => []),
+        getDocumentRequirements(applicantId).catch(() => []),
+      ])
 
+    const programmeSaved = !!programme?.programmeStepSaved
+    const academicSaved = !!academic?.academicStepSaved
+    const profileSaved = !!profile?.profileStepSaved
     const noDeclarations = !declarationTexts || declarationTexts.length === 0
+    const mandatoryDocs = docReqs.filter((r) => r.mandatory || r.conditionCode)
+    // Do not treat "no slots yet" as complete before earlier steps are done —
+    // that made Documents/Declarations show Completed on a fresh Programme step.
+    const documentsComplete =
+      programmeSaved &&
+      academicSaved &&
+      (mandatoryDocs.length === 0 ||
+        mandatoryDocs.every((r) => r.status !== 'NOT_SUBMITTED'))
+    const declarationComplete =
+      profileSaved &&
+      (noDeclarations ||
+        !!(declaration?.declarationStepSaved && declaration.declarationAccepted))
     const nextCompleted: Partial<Record<ApplicationStepId, boolean>> = {
-      programme: !!programme?.programmeStepSaved,
-      academic: !!academic?.academicStepSaved,
-      profile: !!profile?.profileStepSaved,
-      declaration:
-        noDeclarations ||
-        !!(declaration?.declarationStepSaved && declaration.declarationAccepted),
+      programme: programmeSaved,
+      academic: academicSaved,
+      documents: documentsComplete,
+      profile: profileSaved,
+      declaration: declarationComplete,
       review: declaration?.applicationStatus === 'SUBMITTED',
     }
     setCompleted(nextCompleted)
@@ -174,7 +192,8 @@ export function ApplicationFlowPage() {
   function goNext(from: ApplicationStepId) {
     const map: Record<ApplicationStepId, ApplicationStepId | null> = {
       programme: 'academic',
-      academic: 'profile',
+      academic: 'documents',
+      documents: 'profile',
       profile: 'declaration',
       declaration: 'review',
       review: null,
@@ -270,11 +289,22 @@ export function ApplicationFlowPage() {
               />
             ) : null}
 
+            {currentStep === 'documents' ? (
+              <DocumentsStep
+                applicantId={applicantId}
+                onBack={() => setCurrentStep('academic')}
+                onSaved={() => {
+                  void refreshProgress()
+                  goNext('documents')
+                }}
+              />
+            ) : null}
+
             {currentStep === 'profile' ? (
               <ProfileStep
                 applicantId={applicantId}
                 defaultName={user?.name}
-                onBack={() => setCurrentStep('academic')}
+                onBack={() => setCurrentStep('documents')}
                 onSaved={() => {
                   void refreshProgress()
                   goNext('profile')

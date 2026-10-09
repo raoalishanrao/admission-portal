@@ -22,6 +22,8 @@ type Props = {
   requirements: ApplicantDocumentRequirement[]
   completeness: DocumentCompleteness | null
   onChanged: () => Promise<void> | void
+  /** When embedded in the application wizard, the parent already shows the title. */
+  hideHeader?: boolean
 }
 
 function statusStyles(status: AdmissionDocumentStatus) {
@@ -57,6 +59,7 @@ export function ApplicationDocumentsPanel({
   requirements,
   completeness,
   onChanged,
+  hideHeader = false,
 }: Props) {
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -105,15 +108,34 @@ export function ApplicationDocumentsPanel({
 
   return (
     <section className="rounded-xl border border-[#e4e9f4] bg-white px-5 py-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-[#071759]">Admission documents</h2>
-          <p className="mt-1 text-sm text-[#6374ab]">
-            Upload required documents for each slot below. If admissions requests a
-            correction, replace the file using the reason shown.
-          </p>
+      {!hideHeader ? (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-[#071759]">Admission documents</h2>
+            <p className="mt-1 text-sm text-[#6374ab]">
+              Upload required documents for each slot below. If admissions requests a
+              correction, replace the file using the reason shown.
+            </p>
+          </div>
+          {completeness ? (
+            <div
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                completeness.complete
+                  ? 'bg-[#dcfce7] text-[#166534]'
+                  : 'bg-[#fff7ed] text-[#c2410c]'
+              }`}
+            >
+              {completeness.complete ? (
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              ) : (
+                <AlertTriangle className="h-3.5 w-3.5" />
+              )}
+              {completeness.verifiedCount}/{completeness.requiredCount} verified
+            </div>
+          ) : null}
         </div>
-        {completeness ? (
+      ) : completeness ? (
+        <div className="flex justify-end">
           <div
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
               completeness.complete
@@ -128,8 +150,8 @@ export function ApplicationDocumentsPanel({
             )}
             {completeness.verifiedCount}/{completeness.requiredCount} verified
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {outstanding.length > 0 ? (
         <div className="mt-4 rounded-lg border border-[#fecaca] bg-[#fef2f2] px-4 py-3 text-sm text-[#991b1b]">
@@ -180,15 +202,17 @@ export function ApplicationDocumentsPanel({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium text-[#071759]">{req.documentTypeName}</p>
-                      {req.mandatory ? (
-                        <span className="rounded bg-[#fee2e2] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[#b91c1c]">
-                          Required
-                        </span>
-                      ) : (
-                        <span className="rounded bg-[#e2e8f0] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[#475569]">
-                          Optional
-                        </span>
-                      )}
+                      {req.status === 'NOT_SUBMITTED' ? (
+                        req.mandatory ? (
+                          <span className="rounded bg-[#fee2e2] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[#b91c1c]">
+                            Required
+                          </span>
+                        ) : (
+                          <span className="rounded bg-[#e2e8f0] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[#475569]">
+                            Optional
+                          </span>
+                        )
+                      ) : null}
                       <span
                         className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusStyles(req.status)}`}
                       >

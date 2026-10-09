@@ -34,6 +34,7 @@ import {
   type ObjectStorage,
 } from '../../integrations/storage/object-storage.interface.js';
 import { AcademicLevelRequirementsService } from '../academic-level-requirements/academic-level-requirements.service.js';
+import { AdmissionDocumentsService } from '../admission-documents/admission-documents.service.js';
 import type {
   ApplicantRequiredAcademicLevelsResponseDto,
 } from '../academic-level-requirements/dto/academic-level-requirement.dto.js';
@@ -135,6 +136,7 @@ export class ApplicantApplicationsService {
     private readonly dataSource: DataSource,
     private readonly config: ConfigService,
     private readonly academicLevelRequirements: AcademicLevelRequirementsService,
+    private readonly admissionDocuments: AdmissionDocumentsService,
   ) {}
 
   private maxProgrammePreferences(): number {
@@ -887,6 +889,7 @@ export class ApplicantApplicationsService {
 
     await this.assertRequiredAcademicLevels(app, applicantId);
     await this.assertEligibilityMet(app, applicantId);
+    await this.admissionDocuments.assertMandatoryDocumentsUploaded(user, applicantId);
 
     if (
       app.applicationStatus === ApplicationStatus.COMPLETE ||

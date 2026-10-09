@@ -43,7 +43,7 @@ export class ApplicantDocumentsController {
   @ApiParam({ name: 'applicantId', format: 'uuid' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', required: ['file','offeringRequiredDocumentIds'], properties: { file: { type: 'string', format: 'binary' }, offeringRequiredDocumentIds: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', format: 'uuid' }, description: 'Equivalent selected-offering requirements satisfied by this file' }, offeringRequiredDocumentId: { type: 'string', format: 'uuid', deprecated: true, description: 'Legacy single-requirement field' } } } })
-  @ApiOperation({ summary: 'Upload one document for one or more equivalent offering requirements', description: 'The file is stored once and shared by the listed requirements. Accepted formats: JPG, JPEG, PNG, GIF, BMP, and PDF. Application must be submitted.' })
+  @ApiOperation({ summary: 'Upload one document for one or more equivalent offering requirements', description: 'The file is stored once and shared by the listed requirements. Accepted formats: JPG, JPEG, PNG, GIF, BMP, and PDF. Allowed while the application is in progress or after submit.' })
   @ApiWrappedCreatedArrayResponse(AdmissionDocumentDto)
   upload(@CurrentUser() user: AuthUser, @Param('applicantId', new ParseUuidPipe('applicantId')) id: string, @Body() body: { offeringRequiredDocumentIds?: string[] | string; offeringRequiredDocumentId?: string }, @UploadedFile() file?: AdmissionUpload) { return this.service.upload(user, id, this.requirementIds(body), file); }
 

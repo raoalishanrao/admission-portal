@@ -107,7 +107,7 @@ export class AdmissionDocumentsService {
   async listApplicantDocuments(user: AuthUser, applicantId: string) { await this.requireOwned(user, applicantId); const rows = await this.documents.find({ where: { tenantId: user.tenantId, applicantId }, order: { createdAt: 'ASC' } }); return Promise.all(this.uniqueFileRows(rows).map(r => this.getDocumentDto(r))); }
   async getApplicantDocument(user: AuthUser, applicantId: string, id: string) { await this.requireOwned(user, applicantId); const row = await this.requireDocument(user.tenantId, applicantId, id); return this.getDocumentDto(row); }
   async upload(user: AuthUser, applicantId: string, requirementIds: string[], file?: AdmissionUpload) {
-    const app = await this.requireOwned(user, applicantId); this.assertSubmitted(app); this.validateFile(file);
+    const app = await this.requireOwned(user, applicantId); this.assertDocumentActionsAllowed(app); this.validateFile(file);
     const rules = await this.requireCompatibleSelectedRules(user.tenantId, applicantId, requirementIds);
     const type = await this.types.findOneBy({ id: rules[0]!.documentTypeId, active: true }); if (!type) throw new NotFoundException('Active document type not found');
     const expandedIds = rules.map((rule) => rule.id);
@@ -117,7 +117,7 @@ export class AdmissionDocumentsService {
     return this.storeUploadForRules(user, app, rules, type, file!);
   }
   async replace(user: AuthUser, applicantId: string, id: string, file?: AdmissionUpload) {
-    const app = await this.requireOwned(user, applicantId); this.assertSubmitted(app); this.validateFile(file);
+    const app = await this.requireOwned(user, applicantId); this.assertDocumentActionsAllowed(app); this.validateFile(file);
     const row = await this.requireDocument(user.tenantId, applicantId, id);
     const linked = row.documentFileId ? await this.documents.find({ where: { tenantId: user.tenantId, applicantId, documentFileId: row.documentFileId } }) : [row];
     if (linked.some((item) => item.status === AdmissionDocumentStatus.VERIFIED)) throw new ConflictException('A verified shared document cannot be replaced');
@@ -143,7 +143,7 @@ export class AdmissionDocumentsService {
     } catch (error) { try { await this.storage.delete(stored.storageKey); } catch { /* best-effort cleanup */ } throw error; }
   }
   async linkAcademic(user: AuthUser, applicantId: string, dto: LinkAcademicDocumentDto) {
-    const app = await this.requireOwned(user, applicantId); this.assertSubmitted(app);
+    const app = await this.requireOwned(user, applicantId); this.assertDocumentActionsAllowed(app);
     const requirementIds = dto.offeringRequiredDocumentIds ?? (dto.offeringRequiredDocumentId ? [dto.offeringRequiredDocumentId] : []);
     const rules = await this.requireCompatibleSelectedRules(user.tenantId, applicantId, requirementIds);
     const type = await this.types.findOneBy({ id: rules[0]!.documentTypeId, active: true }); if (!type) throw new NotFoundException('Active document type not found');
@@ -385,14 +385,51 @@ export class AdmissionDocumentsService {
   private async requireOffering(tenantId: string, id: string) { const row = await this.offerings.findOneBy({ id, tenantId }); if (!row) throw new NotFoundException('Programme offering not found'); return row; }
   private assertOfferingEditable(row: ProgrammeOfferingEntity) { if (!EDITABLE_OFFERING_STATUSES.includes(row.offeringStatus as any)) throw new ConflictException('Document requirements can only be configured while the offering is editable'); }
   private async requireOwned(user: AuthUser, applicantId: string) { const row = await this.applications.findOneBy({ id: applicantId, tenantId: user.tenantId }); if (!row) throw new NotFoundException('Application not found'); if (row.iamUserId !== user.userId) throw new ForbiddenException('You do not own this application'); return row; }
-  private assertSubmitted(app: ApplicationEntity) {
-    if (!['SUBMITTED', 'COMPLETE', 'APPROVED'].includes(app.applicationStatus)) {
+  /** Uploads are allowed during the application wizard and after submit. */
+  private assertDocumentActionsAllowed(app: ApplicationEntity) {
+    const allowed = [
+      'REGISTERED',
+      'IN_PROGRESS',
+      'SUBMITTED',
+      'COMPLETE',
+      'APPROVED',
+    ];
+    if (!allowed.includes(app.applicationStatus)) {
       throw new BusinessException(
-        'Application must be submitted before document actions',
+        'Document uploads are not available for this application status',
         HttpStatus.CONFLICT,
-        'APPLICATION_NOT_SUBMITTED',
+        'DOCUMENT_ACTIONS_NOT_ALLOWED',
       );
     }
+  }
+
+  /**
+   * Mandatory (and conditioned) F004 slots must have a file before application submit.
+   * Staff verification still happens after submission.
+   */
+  async assertMandatoryDocumentsUploaded(user: AuthUser, applicantId: string) {
+    const requirements = await this.applicantRequirements(user, applicantId);
+    const blocking = requirements.filter(
+      (r: { mandatory?: boolean; conditionCode?: string | null }) =>
+        r.mandatory || Boolean(r.conditionCode),
+    );
+    const missing = blocking.filter(
+      (r: { status?: string; documentTypeName?: string }) =>
+        r.status === AdmissionDocumentStatus.NOT_SUBMITTED,
+    );
+    if (missing.length === 0) return;
+    throw new BusinessException(
+      `Upload required admission documents before submitting: ${missing
+        .map((r: { documentTypeName?: string }) => r.documentTypeName ?? 'document')
+        .join(', ')}`,
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      'ADMISSION_DOCUMENTS_INCOMPLETE',
+      {
+        missingDocumentTypeNames: missing.map(
+          (r: { documentTypeName?: string }) => r.documentTypeName,
+        ),
+      },
+    );
   }
   private async requireDocument(tenantId: string, applicantId: string | undefined, id: string) { const where: any = { id, tenantId }; if (applicantId) where.applicantId = applicantId; const row = await this.documents.findOneBy(where); if (!row) throw new NotFoundException('Applicant document not found'); return row; }
   private uniqueFileRows(rows: ApplicantDocumentEntity[]) { const seen = new Set<string>(); return rows.filter((row) => { const key = row.documentFileId ?? row.id; if (seen.has(key)) return false; seen.add(key); return true; }); }
