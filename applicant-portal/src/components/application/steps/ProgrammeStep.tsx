@@ -26,7 +26,6 @@ import {
   qualificationLevelFromDegree,
   qualificationLevelLabel,
 } from '@/lib/application-steps'
-import { cn } from '@/lib/utils'
 
 type Props = {
   applicantId: string
