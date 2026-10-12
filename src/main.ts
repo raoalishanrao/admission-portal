@@ -61,6 +61,7 @@ async function bootstrap() {
       'Content-Type',
       'Authorization',
       'Accept',
+      'Idempotency-Key',
       'ngrok-skip-browser-warning',
     ],
     credentials: true,
