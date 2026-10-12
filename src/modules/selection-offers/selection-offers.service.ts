@@ -166,7 +166,26 @@ export class SelectionOffersService {
   }
 
   async getImport(ctx: RequestContext, id: string) { this.admin(ctx); const rows=await this.db.query('SELECT * FROM result_imports WHERE tenant_id=$1 AND id=$2',[ctx.tenantId,id]); if(!rows[0]) throw new NotFoundException('Result import not found'); return rows[0]; }
-  async importRows(ctx: RequestContext,id:string,page=1,limit=20) { this.admin(ctx); const batch=await this.getImport(ctx,id); const [items,count]=await Promise.all([this.db.query(`SELECT * FROM result_import_rows WHERE tenant_id=$1 AND import_id=$2 ORDER BY row_number LIMIT $3 OFFSET $4`,[ctx.tenantId,id,limit,(page-1)*limit]),this.db.query(`SELECT count(*)::int AS total FROM result_import_rows WHERE tenant_id=$1 AND import_id=$2`,[ctx.tenantId,id])]); return {items,meta:{page,limit,total:count[0].total,totalPages:Math.ceil(count[0].total/limit)}}; }
+  async importRows(ctx: RequestContext,id:string,page=1,limit=20) {
+    this.admin(ctx);
+    await this.getImport(ctx,id);
+    const [items,count]=await Promise.all([
+      this.db.query(
+        `SELECT r.*, a.applicant_name
+         FROM result_import_rows r
+         LEFT JOIN applications a ON a.id = r.application_record_id AND a.tenant_id = r.tenant_id
+         WHERE r.tenant_id=$1 AND r.import_id=$2
+         ORDER BY r.row_number
+         LIMIT $3 OFFSET $4`,
+        [ctx.tenantId,id,limit,(page-1)*limit],
+      ),
+      this.db.query(
+        `SELECT count(*)::int AS total FROM result_import_rows WHERE tenant_id=$1 AND import_id=$2`,
+        [ctx.tenantId,id],
+      ),
+    ]);
+    return {items,meta:{page,limit,total:count[0].total,totalPages:Math.ceil(count[0].total/limit)}};
+  }
   async confirmImport(ctx:RequestContext,id:string,correctionReason?:string) { this.admin(ctx); return this.db.transaction(async m=>{ const b=(await m.query(`SELECT * FROM result_imports WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,[ctx.tenantId,id]))[0]; if(!b) throw new NotFoundException('Result import not found'); if(b.status==='CONFIRMED') return b; if(b.status!=='READY_TO_CONFIRM'||Number(b.invalid_rows)>0) throw new UnprocessableEntityException({code:'IMPORT_NOT_CONFIRMABLE',message:'All rows must be valid before confirmation'}); const rows=await m.query(`SELECT * FROM result_import_rows WHERE tenant_id=$1 AND import_id=$2 ORDER BY row_number FOR UPDATE`,[ctx.tenantId,id]); for(const row of rows){ const prior=(await m.query(`SELECT id,revision FROM application_entry_test_results WHERE tenant_id=$1 AND application_record_id=$2 AND test_session_id=$3 AND is_current FOR UPDATE`,[ctx.tenantId,row.application_record_id,b.test_session_id]))[0]; if(prior&&!correctionReason?.trim()) throw new ConflictException({code:'RESULT_ALREADY_EXISTS',message:'Existing result requires a documented correctionReason to replace'}); if(prior) await m.query(`UPDATE application_entry_test_results SET is_current=FALSE WHERE id=$1`,[prior.id]); const revision=prior?Number(prior.revision)+1:1; await m.query(`INSERT INTO application_entry_test_results(tenant_id,application_record_id,application_reference,test_session_id,test_score,total_marks,percentage,result_status,remarks,import_id,revision,supersedes_result_id,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,[ctx.tenantId,row.application_record_id,row.application_reference,b.test_session_id,row.test_score,row.total_marks,row.percentage,row.result_status,row.remarks,id,revision,prior?.id??null,ctx.userId]); await m.query(`UPDATE result_import_rows SET validation_status='COMMITTED' WHERE id=$1`,[row.id]); } return (await m.query(`UPDATE result_imports SET status='CONFIRMED',confirmed_by=$3,confirmed_at=now(),correction_reason=$4 WHERE tenant_id=$1 AND id=$2 RETURNING *`,[ctx.tenantId,id,ctx.userId,correctionReason?.trim()??null]))[0]; }); }
   async publishResults(ctx: RequestContext, testSessionId: string) {
     this.admin(ctx);
@@ -495,7 +514,27 @@ export class SelectionOffersService {
   }
 
   async approveMerit(ctx:RequestContext,id:string) { this.admin(ctx); const r=await this.db.query(`UPDATE programme_merit_lists SET status='APPROVED',approved_by=$3,approved_at=now() WHERE tenant_id=$1 AND id=$2 AND status='DRAFT' RETURNING *`,[ctx.tenantId,id,ctx.userId]); if(!r[0]) throw new NotFoundException('Draft merit list not found'); return r[0]; }
-  async meritDetails(ctx:RequestContext,id:string,page=1,limit=20){this.admin(ctx);const list=(await this.db.query(`SELECT * FROM programme_merit_lists WHERE tenant_id=$1 AND id=$2`,[ctx.tenantId,id]))[0];if(!list)throw new NotFoundException('Merit list not found');const [items,c]=await Promise.all([this.db.query(`SELECT * FROM programme_merit_list_items WHERE tenant_id=$1 AND merit_list_id=$2 ORDER BY merit_rank,application_reference LIMIT $3 OFFSET $4`,[ctx.tenantId,id,limit,(page-1)*limit]),this.db.query(`SELECT count(*)::int total FROM programme_merit_list_items WHERE tenant_id=$1 AND merit_list_id=$2`,[ctx.tenantId,id])]);return {...list,items,meta:{page,limit,total:c[0].total,totalPages:Math.ceil(c[0].total/limit)}};}
+  async meritDetails(ctx:RequestContext,id:string,page=1,limit=20){
+    this.admin(ctx);
+    const list=(await this.db.query(`SELECT * FROM programme_merit_lists WHERE tenant_id=$1 AND id=$2`,[ctx.tenantId,id]))[0];
+    if(!list)throw new NotFoundException('Merit list not found');
+    const [items,c]=await Promise.all([
+      this.db.query(
+        `SELECT mi.*, a.applicant_name
+         FROM programme_merit_list_items mi
+         JOIN applications a ON a.id = mi.application_record_id AND a.tenant_id = mi.tenant_id
+         WHERE mi.tenant_id=$1 AND mi.merit_list_id=$2
+         ORDER BY mi.merit_rank, mi.application_reference
+         LIMIT $3 OFFSET $4`,
+        [ctx.tenantId,id,limit,(page-1)*limit],
+      ),
+      this.db.query(
+        `SELECT count(*)::int total FROM programme_merit_list_items WHERE tenant_id=$1 AND merit_list_id=$2`,
+        [ctx.tenantId,id],
+      ),
+    ]);
+    return {...list,items,meta:{page,limit,total:c[0].total,totalPages:Math.ceil(c[0].total/limit)}};
+  }
   async publishMerit(ctx:RequestContext,id:string) { this.admin(ctx); const r=await this.db.query(`UPDATE programme_merit_lists SET status='PUBLISHED',published_by=$3,published_at=now() WHERE tenant_id=$1 AND id=$2 AND status='APPROVED' RETURNING *`,[ctx.tenantId,id,ctx.userId]); if(!r[0]) throw new NotFoundException('Approved merit list not found'); return r[0]; }
 
   async previewAllocation(
@@ -739,7 +778,26 @@ export class SelectionOffersService {
   async confirmAllocation(ctx:RequestContext,id:string,version:number,key:string) { this.admin(ctx); if(!key?.trim()||key.length>100) throw new BadRequestException('Idempotency-Key header is required (maximum 100 characters)'); return this.db.transaction(async m=>{const a=(await m.query(`SELECT * FROM application_selection_allocations WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,[ctx.tenantId,id]))[0]; if(!a)throw new NotFoundException('Allocation not found'); if(a.status==='CONFIRMED')return a; if(a.status!=='PREVIEW'||Number(a.allocation_version)!==version)throw new ConflictException('Allocation preview is stale or not confirmable'); const prev=await m.query(`SELECT id FROM application_selection_allocations WHERE tenant_id=$1 AND intake_session_id=$2 AND test_session_id=$3 AND status='CONFIRMED' FOR UPDATE`,[ctx.tenantId,a.intake_session_id,a.test_session_id]); if(prev[0])await m.query(`UPDATE application_selection_allocations SET status='SUPERSEDED' WHERE id=$1`,[prev[0].id]); const items=await m.query(`SELECT * FROM application_selection_allocation_items WHERE tenant_id=$1 AND allocation_id=$2 ORDER BY application_record_id FOR UPDATE`,[ctx.tenantId,id]); for(const item of items){ await m.query(`UPDATE applications SET selection_status=$3,selected_programme_offering_id=$4,selection_at=now(),selection_by=$5,selection_reason=$6 WHERE tenant_id=$1 AND id=$2`,[ctx.tenantId,item.application_record_id,item.selection_status,item.selected_programme_offering_id,ctx.userId,item.reason]); } await m.query(`UPDATE programme_merit_list_items mi SET selection_status=ai.selection_status,final_selection=(ai.selection_status='SELECTED') FROM application_selection_allocation_items ai WHERE ai.tenant_id=$1 AND ai.allocation_id=$2 AND ai.merit_list_item_id=mi.id`,[ctx.tenantId,id]); return (await m.query(`UPDATE application_selection_allocations SET status='CONFIRMED',idempotency_key=$3,confirmed_at=now(),supersedes_allocation_id=$4 WHERE tenant_id=$1 AND id=$2 RETURNING *`,[ctx.tenantId,id,key,prev[0]?.id??null]))[0]; }); }
 
   async allocation(ctx:RequestContext,id:string) { this.admin(ctx); const r=await this.db.query(`SELECT * FROM application_selection_allocations WHERE tenant_id=$1 AND id=$2`,[ctx.tenantId,id]); if(!r[0])throw new NotFoundException('Allocation not found'); return r[0]; }
-  async allocationItems(ctx:RequestContext,id:string,page=1,limit=20) { this.admin(ctx); await this.allocation(ctx,id); const [items,c]=await Promise.all([this.db.query(`SELECT * FROM application_selection_allocation_items WHERE tenant_id=$1 AND allocation_id=$2 ORDER BY application_reference LIMIT $3 OFFSET $4`,[ctx.tenantId,id,limit,(page-1)*limit]),this.db.query(`SELECT count(*)::int total FROM application_selection_allocation_items WHERE tenant_id=$1 AND allocation_id=$2`,[ctx.tenantId,id])]);return {items,meta:{page,limit,total:c[0].total,totalPages:Math.ceil(c[0].total/limit)}};}
+  async allocationItems(ctx:RequestContext,id:string,page=1,limit=20) {
+    this.admin(ctx);
+    await this.allocation(ctx,id);
+    const [items,c]=await Promise.all([
+      this.db.query(
+        `SELECT ai.*, a.applicant_name
+         FROM application_selection_allocation_items ai
+         JOIN applications a ON a.id = ai.application_record_id AND a.tenant_id = ai.tenant_id
+         WHERE ai.tenant_id=$1 AND ai.allocation_id=$2
+         ORDER BY ai.application_reference
+         LIMIT $3 OFFSET $4`,
+        [ctx.tenantId,id,limit,(page-1)*limit],
+      ),
+      this.db.query(
+        `SELECT count(*)::int total FROM application_selection_allocation_items WHERE tenant_id=$1 AND allocation_id=$2`,
+        [ctx.tenantId,id],
+      ),
+    ]);
+    return {items,meta:{page,limit,total:c[0].total,totalPages:Math.ceil(c[0].total/limit)}};
+  }
 
   async authorizeOffer(ctx:RequestContext,applicationId:string,dto:any) { this.admin(ctx); return this.db.transaction(async m=>{const app=(await m.query(`SELECT a.*,i.offer_payment_period_days FROM applications a JOIN intakes i ON i.id=a.intake_id WHERE a.tenant_id=$1 AND a.id=$2 FOR UPDATE`,[ctx.tenantId,applicationId]))[0]; if(!app)throw new NotFoundException('Application not found'); if(app.selection_status!=='SELECTED'||!app.selected_programme_offering_id)throw new UnprocessableEntityException('Only selected applicants can receive an offer'); const deadline=new Date(Date.now()+Number(app.offer_payment_period_days)*86400000); const r=await m.query(`INSERT INTO admission_offers(tenant_id,application_record_id,programme_offering_id,offer_type,offer_conditions,acceptance_deadline,fee_payment_instructions,offer_letter_document,authorized_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,[ctx.tenantId,app.id,app.selected_programme_offering_id,dto.offerType,dto.offerConditions??null,deadline,dto.feePaymentInstructions??null,dto.offerLetterDocument,ctx.userId]); return r[0];}); }
   async publishOffer(ctx:RequestContext,applicationId:string) {
