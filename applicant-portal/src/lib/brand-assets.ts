@@ -1,6 +1,3 @@
-/** University + bank logos (files live at the monorepo root). */
-import universityLogoUrl from '../../../logo.png'
-import hblLogoUrl from '../../../hbl.png'
-
-export const UNIVERSITY_LOGO_URL = universityLogoUrl
-export const HBL_LOGO_URL = hblLogoUrl
+/** University + bank logos from applicant-portal/public. */
+export const UNIVERSITY_LOGO_URL = '/logo.png'
+export const HBL_LOGO_URL = '/hbl.png'
