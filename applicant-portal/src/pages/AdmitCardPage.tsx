@@ -102,16 +102,28 @@ export function AdmitCardPage() {
           <div className="rounded-xl border border-red-200 bg-white px-5 py-8 text-center">
             <p className="text-sm font-medium text-red-700">{error}</p>
             <p className="mt-2 text-xs text-[#6374ab]">
-              Admit cards are available after your application is approved and a
-              test session is assigned.
+              {error.toLowerCase().includes('do not own')
+                ? 'This admit card link is not for your account. Open My Application and use your own admit card.'
+                : 'Admit cards are available after your application is approved and a test session is assigned.'}
             </p>
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="mt-4 inline-flex h-10 items-center rounded-lg bg-[#0c3cff] px-4 text-sm font-medium text-white"
-            >
-              Try again
-            </button>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              {error.toLowerCase().includes('do not own') ? (
+                <Link
+                  to="/my-application"
+                  className="inline-flex h-10 items-center rounded-lg bg-[#0c3cff] px-4 text-sm font-medium text-white"
+                >
+                  My Application
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void load()}
+                  className="inline-flex h-10 items-center rounded-lg bg-[#0c3cff] px-4 text-sm font-medium text-white"
+                >
+                  Try again
+                </button>
+              )}
+            </div>
           </div>
         ) : card ? (
           <AdmitCardSheet card={card} />

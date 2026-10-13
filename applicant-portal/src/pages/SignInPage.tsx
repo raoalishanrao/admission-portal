@@ -14,10 +14,52 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/context/AuthContext'
+import { listMyApplications } from '@/lib/api/my-applications'
 import {
   getApplicationBindingForIntake,
   getLatestApplicationBinding,
 } from '@/lib/application-session'
+
+function applicationIdFromPath(path: string): string | null {
+  const match = path.match(/^\/applications\/([0-9a-f-]{36})(?:\/|$)/i)
+  return match?.[1] ?? null
+}
+
+async function resolvePostLoginPath(from: string, email: string): Promise<string> {
+  const applyMatch = from.match(/^\/apply\/([^/?]+)/)
+  if (applyMatch?.[1]) {
+    const binding = getApplicationBindingForIntake(email, applyMatch[1])
+    if (binding) return `/applications/${binding.applicantId}`
+  }
+
+  const fromAppId = applicationIdFromPath(from)
+  let ownedIds: string[] = []
+  try {
+    const apps = await listMyApplications()
+    ownedIds = apps.map(app => app.applicantId)
+  } catch {
+    const latest = getLatestApplicationBinding(email)
+    if (latest) ownedIds = [latest.applicantId]
+  }
+
+  if (fromAppId) {
+    if (ownedIds.includes(fromAppId)) return from
+    // Stale/foreign application deep-link — land on owned app or inbox.
+    if (from.includes('/admit-card') && ownedIds[0]) {
+      return `/applications/${ownedIds[0]}/admit-card`
+    }
+    if (ownedIds[0]) return `/applications/${ownedIds[0]}`
+    return '/my-application'
+  }
+
+  if (from === '/' || from === '') {
+    const latest = getLatestApplicationBinding(email)
+    if (latest) return `/applications/${latest.applicantId}`
+    if (ownedIds[0]) return `/applications/${ownedIds[0]}`
+  }
+
+  return from || '/'
+}
 
 type FieldErrors = {
   email?: string
@@ -26,7 +68,7 @@ type FieldErrors = {
 }
 
 export function SignInPage() {
-  const { isAuthenticated, login } = useAuth()
+  const { isAuthenticated, login, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string } | null)?.from ?? '/'
@@ -40,7 +82,15 @@ export function SignInPage() {
   const [loading, setLoading] = useState(false)
 
   if (isAuthenticated) {
-    return <Navigate to={from} replace />
+    // Avoid restoring a stale/foreign application deep-link (e.g. admit-card).
+    const fromAppId = applicationIdFromPath(from)
+    if (fromAppId && user?.applicantId && fromAppId === user.applicantId) {
+      return <Navigate to={from} replace />
+    }
+    if (fromAppId) {
+      return <Navigate to="/my-application" replace />
+    }
+    return <Navigate to={from === '' ? '/' : from} replace />
   }
 
   function validate() {
@@ -69,22 +119,8 @@ export function SignInPage() {
       }
 
       const normalizedEmail = email.trim().toLowerCase()
-      const applyMatch = from.match(/^\/apply\/([^/?]+)/)
-      if (applyMatch?.[1]) {
-        const binding = getApplicationBindingForIntake(normalizedEmail, applyMatch[1])
-        if (binding) {
-          navigate(`/applications/${binding.applicantId}`, { replace: true })
-          return
-        }
-      }
-
-      const latest = getLatestApplicationBinding(normalizedEmail)
-      if (from === '/' && latest) {
-        navigate(`/applications/${latest.applicantId}`, { replace: true })
-        return
-      }
-
-      navigate(from, { replace: true })
+      const nextPath = await resolvePostLoginPath(from, normalizedEmail)
+      navigate(nextPath, { replace: true })
     } finally {
       setLoading(false)
     }

@@ -847,7 +847,85 @@ export class SelectionOffersService {
     return {items,meta:{page,limit,total:c[0].total,totalPages:Math.ceil(c[0].total/limit)}};
   }
 
-  async authorizeOffer(ctx:RequestContext,applicationId:string,dto:any) { this.admin(ctx); return this.db.transaction(async m=>{const app=(await m.query(`SELECT a.*,i.offer_payment_period_days FROM applications a JOIN intakes i ON i.id=a.intake_id WHERE a.tenant_id=$1 AND a.id=$2 FOR UPDATE`,[ctx.tenantId,applicationId]))[0]; if(!app)throw new NotFoundException('Application not found'); if(app.selection_status!=='SELECTED'||!app.selected_programme_offering_id)throw new UnprocessableEntityException('Only selected applicants can receive an offer'); const deadline=new Date(Date.now()+Number(app.offer_payment_period_days)*86400000); const r=await m.query(`INSERT INTO admission_offers(tenant_id,application_record_id,programme_offering_id,offer_type,offer_conditions,acceptance_deadline,fee_payment_instructions,offer_letter_document,authorized_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,[ctx.tenantId,app.id,app.selected_programme_offering_id,dto.offerType,dto.offerConditions??null,deadline,dto.feePaymentInstructions??null,dto.offerLetterDocument,ctx.userId]); return r[0];}); }
+  async authorizeOffer(ctx: RequestContext, applicationId: string, dto: any) {
+    this.admin(ctx);
+    return this.db.transaction(async (m) => {
+      const app = (
+        await m.query(
+          `SELECT a.*,i.offer_payment_period_days FROM applications a JOIN intakes i ON i.id=a.intake_id WHERE a.tenant_id=$1 AND a.id=$2 FOR UPDATE`,
+          [ctx.tenantId, applicationId],
+        )
+      )[0];
+      if (!app) throw new NotFoundException('Application not found');
+      if (app.selection_status !== 'SELECTED' || !app.selected_programme_offering_id) {
+        throw new UnprocessableEntityException('Only selected applicants can receive an offer');
+      }
+
+      const existing = (
+        await m.query(
+          `SELECT * FROM admission_offers
+           WHERE tenant_id=$1 AND application_record_id=$2
+             AND status IN ('AUTHORIZED','PUBLISHED')
+           FOR UPDATE`,
+          [ctx.tenantId, applicationId],
+        )
+      )[0];
+      if (existing?.status === 'PUBLISHED') {
+        throw new ConflictException('Application already has a published offer');
+      }
+      if (existing?.status === 'AUTHORIZED') {
+        // Idempotent re-authorize: refresh letter/conditions/deadline on the active row.
+        const deadline = new Date(
+          Date.now() + Number(app.offer_payment_period_days) * 86400000,
+        );
+        const updated = (
+          await m.query(
+            `UPDATE admission_offers
+             SET offer_type=$3,
+                 offer_conditions=$4,
+                 acceptance_deadline=$5,
+                 fee_payment_instructions=$6,
+                 offer_letter_document=$7,
+                 authorized_by=$8,
+                 authorized_at=now(),
+                 updated_at=now()
+             WHERE tenant_id=$1 AND id=$2 AND status='AUTHORIZED'
+             RETURNING *`,
+            [
+              ctx.tenantId,
+              existing.id,
+              dto.offerType,
+              dto.offerConditions ?? null,
+              deadline,
+              dto.feePaymentInstructions ?? null,
+              dto.offerLetterDocument,
+              ctx.userId,
+            ],
+          )
+        )[0];
+        return updated ?? existing;
+      }
+
+      const deadline = new Date(
+        Date.now() + Number(app.offer_payment_period_days) * 86400000,
+      );
+      const r = await m.query(
+        `INSERT INTO admission_offers(tenant_id,application_record_id,programme_offering_id,offer_type,offer_conditions,acceptance_deadline,fee_payment_instructions,offer_letter_document,authorized_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [
+          ctx.tenantId,
+          app.id,
+          app.selected_programme_offering_id,
+          dto.offerType,
+          dto.offerConditions ?? null,
+          deadline,
+          dto.feePaymentInstructions ?? null,
+          dto.offerLetterDocument,
+          ctx.userId,
+        ],
+      );
+      return r[0];
+    });
+  }
   async publishOffer(ctx:RequestContext,applicationId:string) {
     this.admin(ctx);
     const authorized = (
