@@ -40,7 +40,7 @@ export const APPLICATION_STEPS: Array<{
     id: 'specialCategories',
     number: 5,
     title: 'Special Categories',
-    shortTitle: 'Special',
+    shortTitle: 'Categories',
     description:
       'Optional claims (Hafiz-e-Quran, Sports, etc.) that may add bonus marks to your merit score.',
   },

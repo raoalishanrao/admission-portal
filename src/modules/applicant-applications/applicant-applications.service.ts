@@ -1047,11 +1047,18 @@ export class ApplicantApplicationsService {
       app.tenantId,
       applicantId,
     );
-    const acceptedIds = dto.acceptedOfferingDeclarationIds ?? [];
-    const versionLabel = required
-      .filter((r) => acceptedIds.includes(r.id))
-      .map((r) => r.version)
-      .join(',');
+    const acceptedIds = this.expandAcceptedDeclarationIds(
+      required,
+      dto.acceptedOfferingDeclarationIds ?? [],
+    );
+    const versionLabel = [
+      ...new Set(
+        required
+          .filter((r) => acceptedIds.includes(r.id))
+          .map((r) => r.version.trim())
+          .filter(Boolean),
+      ),
+    ].join(',');
 
     const row =
       existing ??
@@ -1084,13 +1091,28 @@ export class ApplicantApplicationsService {
     applicantId: string,
   ): Promise<OfferingDeclarationForApplicantDto[]> {
     const app = await this.requireOwnedEditable(user, applicantId, false);
-    return this.loadActiveOfferingDeclarations(app.tenantId, applicantId);
+    // Same text on BS IT + Urdu → one declaration for the applicant (like education/docs).
+    return this.dedupeOfferingDeclarationsForDisplay(
+      await this.loadActiveOfferingDeclarations(app.tenantId, applicantId),
+    );
   }
 
+  /**
+   * All ACTIVE offering_declaration rows for the applicant's selected programmes
+   * (one row per offering attachment — used for persistence / submit checks).
+   */
   private async loadActiveOfferingDeclarations(
     tenantId: string,
     applicantId: string,
-  ): Promise<OfferingDeclarationForApplicantDto[]> {
+  ): Promise<
+    Array<{
+      id: string;
+      programmeOfferingId: string;
+      declarationTypeId: string;
+      declarationText: string;
+      version: string;
+    }>
+  > {
     const options = await this.programmeOptionsRepo.find({
       where: { applicantId, tenantId },
     });
@@ -1117,6 +1139,100 @@ export class ApplicantApplicationsService {
       declarationText: r.declarationText,
       version: r.version,
     }));
+  }
+
+  /** Collapse identical declaration text across selected programmes into one UI item. */
+  private dedupeOfferingDeclarationsForDisplay(
+    rows: Array<{
+      id: string;
+      programmeOfferingId: string;
+      declarationTypeId: string;
+      declarationText: string;
+      version: string;
+    }>,
+  ): OfferingDeclarationForApplicantDto[] {
+    const groups = new Map<
+      string,
+      {
+        id: string;
+        ids: string[];
+        programmeOfferingIds: string[];
+        declarationTypeId: string;
+        declarationText: string;
+        version: string;
+      }
+    >();
+    for (const row of rows) {
+      const key = [
+        row.declarationTypeId,
+        row.version.trim(),
+        row.declarationText.trim(),
+      ].join('\u0001');
+      const existing = groups.get(key);
+      if (existing) {
+        if (!existing.ids.includes(row.id)) existing.ids.push(row.id);
+        if (!existing.programmeOfferingIds.includes(row.programmeOfferingId)) {
+          existing.programmeOfferingIds.push(row.programmeOfferingId);
+        }
+      } else {
+        groups.set(key, {
+          id: row.id,
+          ids: [row.id],
+          programmeOfferingIds: [row.programmeOfferingId],
+          declarationTypeId: row.declarationTypeId,
+          declarationText: row.declarationText,
+          version: row.version,
+        });
+      }
+    }
+    return [...groups.values()].map((g) => ({
+      id: g.id,
+      ids: g.ids,
+      programmeOfferingId: g.programmeOfferingIds[0]!,
+      programmeOfferingIds: g.programmeOfferingIds,
+      declarationTypeId: g.declarationTypeId,
+      declarationText: g.declarationText,
+      version: g.version,
+    }));
+  }
+
+  /**
+   * If the applicant accepts any id from a unique text group, expand to every
+   * offering_declaration id that shares that type/version/text.
+   */
+  private expandAcceptedDeclarationIds(
+    required: Array<{
+      id: string;
+      declarationTypeId: string;
+      declarationText: string;
+      version: string;
+    }>,
+    acceptedIds: string[],
+  ): string[] {
+    const keyOf = (r: {
+      declarationTypeId: string;
+      declarationText: string;
+      version: string;
+    }) =>
+      [r.declarationTypeId, r.version.trim(), r.declarationText.trim()].join(
+        '\u0001',
+      );
+    const byKey = new Map<string, string[]>();
+    for (const row of required) {
+      const key = keyOf(row);
+      const list = byKey.get(key) ?? [];
+      list.push(row.id);
+      byKey.set(key, list);
+    }
+    const accepted = new Set(acceptedIds);
+    const expanded = new Set<string>();
+    for (const row of required) {
+      if (!accepted.has(row.id)) continue;
+      for (const id of byKey.get(keyOf(row)) ?? [row.id]) {
+        expanded.add(id);
+      }
+    }
+    return [...expanded];
   }
 
   private async requireOwnedEditable(
@@ -1353,7 +1469,12 @@ export class ApplicantApplicationsService {
       applicantId,
     );
     const requiredIds = new Set(required.map((r) => r.id));
-    const accepted = new Set(dto.acceptedOfferingDeclarationIds ?? []);
+    const accepted = new Set(
+      this.expandAcceptedDeclarationIds(
+        required,
+        dto.acceptedOfferingDeclarationIds ?? [],
+      ),
+    );
     for (const id of requiredIds) {
       if (!accepted.has(id)) {
         throw new BusinessException(

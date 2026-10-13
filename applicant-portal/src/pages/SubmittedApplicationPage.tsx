@@ -338,9 +338,10 @@ export function SubmittedApplicationPage() {
     )
   }
 
-  const acceptedTexts = declarationTexts.filter((text) =>
-    acceptedIds.includes(text.id),
-  )
+  const acceptedTexts = declarationTexts.filter((text) => {
+    const groupIds = text.ids?.length ? text.ids : [text.id]
+    return groupIds.some((id) => acceptedIds.includes(id))
+  })
   const reference =
     binding?.applicationReference ||
     feeStatus?.challan?.registrationNumber ||

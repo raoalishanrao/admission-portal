@@ -748,11 +748,30 @@ export class ProfileStepResponseDto {
 /* ── Declaration / Submit ─────────────────────────────────────────── */
 
 export class OfferingDeclarationForApplicantDto {
-  @ApiProperty()
+  @ApiProperty({
+    description:
+      'Representative offering_declaration id for this unique text (use for UI keys). When the same declaration is attached to multiple selected programmes, duplicates are collapsed here.',
+  })
   id!: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    type: [String],
+    description:
+      'All offering_declaration ids covered by this unique text (one per selected programme that has this declaration). Accepting the text accepts all of these ids.',
+  })
+  ids!: string[];
+
+  @ApiProperty({
+    description:
+      'First programme offering id (legacy). Prefer programmeOfferingIds when multiple programmes share this text.',
+  })
   programmeOfferingId!: string;
+
+  @ApiProperty({
+    type: [String],
+    description: 'Programme offerings that carry this same declaration text',
+  })
+  programmeOfferingIds!: string[];
 
   @ApiProperty()
   declarationTypeId!: string;

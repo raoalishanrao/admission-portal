@@ -35,10 +35,20 @@ export function DeclarationStep({ applicantId, onSaved, onBack }: Props) {
           getDeclarationStep(applicantId).catch(() => null),
         ])
         if (cancelled) return
-        setTexts(Array.isArray(textData) ? textData : [])
+        const list = Array.isArray(textData) ? textData : []
+        setTexts(list)
         if (existing) {
           setAlreadySaved(existing.declarationStepSaved)
-          setAcceptedIds(new Set(existing.acceptedOfferingDeclarationIds ?? []))
+          const saved = new Set(existing.acceptedOfferingDeclarationIds ?? [])
+          // Mark unique text accepted if any linked offering_declaration id was saved
+          const displayAccepted = new Set<string>()
+          for (const item of list) {
+            const groupIds = item.ids?.length ? item.ids : [item.id]
+            if (groupIds.some(id => saved.has(id))) {
+              displayAccepted.add(item.id)
+            }
+          }
+          setAcceptedIds(displayAccepted)
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -82,7 +92,10 @@ export function DeclarationStep({ applicantId, onSaved, onBack }: Props) {
     try {
       const body = {
         declarationAccepted: true,
-        acceptedOfferingDeclarationIds: texts.map(item => item.id),
+        // Send every offering_declaration id covered by accepted unique texts
+        acceptedOfferingDeclarationIds: texts
+          .filter(item => acceptedIds.has(item.id))
+          .flatMap(item => (item.ids?.length ? item.ids : [item.id])),
         disciplinaryIssueDeclared: false,
       }
 

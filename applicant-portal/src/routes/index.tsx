@@ -1,8 +1,10 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { SiteLayout } from '@/components/layout/SiteLayout'
+import { AboutPage } from '@/pages/AboutPage'
 import { AdmitCardPage } from '@/pages/AdmitCardPage'
 import { AdmissionsPage } from '@/pages/AdmissionsPage'
 import { ApplicationFlowPage } from '@/pages/ApplicationFlowPage'
+import { FaqPage } from '@/pages/FaqPage'
 import { ApplicationSuccessPage } from '@/pages/ApplicationSuccessPage'
 import { CreateApplicationPage } from '@/pages/CreateApplicationPage'
 import { IntakeDetailPage } from '@/pages/IntakeDetailPage'
@@ -23,6 +25,8 @@ export const router = createBrowserRouter([
     element: <SiteLayout />,
     children: [
       { index: true, element: <AdmissionsPage /> },
+      { path: 'about', element: <AboutPage /> },
+      { path: 'faq', element: <FaqPage /> },
       { path: 'intakes/:intakeId', element: <IntakeDetailPage /> },
       { path: 'offerings/:offeringId', element: <OfferingDetailPage /> },
       { path: 'apply/:intakeId', element: <CreateApplicationPage /> },

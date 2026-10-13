@@ -198,7 +198,10 @@ export function ReviewStep({ applicantId, applicationReference, onBack, onSubmit
     )
   }
 
-  const acceptedTexts = declarationTexts.filter(text => acceptedIds.includes(text.id))
+  const acceptedTexts = declarationTexts.filter(text => {
+    const groupIds = text.ids?.length ? text.ids : [text.id]
+    return groupIds.some(id => acceptedIds.includes(id))
+  })
 
   return (
     <div className="space-y-6">

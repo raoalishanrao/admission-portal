@@ -21,6 +21,8 @@ export function SiteHeader() {
     isAuthenticated && user ? getActiveApplication(user.email) : null
   const admitCardApplicantId = user?.applicantId || activeApp?.applicantId || ''
   const onHome = location.pathname === '/'
+  const onAbout = location.pathname.startsWith('/about')
+  const onFaq = location.pathname.startsWith('/faq')
   const onMyApplication =
     location.pathname.startsWith('/my-application') ||
     location.pathname.startsWith('/applications')
@@ -29,6 +31,8 @@ export function SiteHeader() {
   const onAdmitCard = location.pathname.includes('/admit-card')
   const onAdmissions =
     !onHome &&
+    !onAbout &&
+    !onFaq &&
     !onMyApplication &&
     !onResults &&
     !onOffer &&
@@ -63,12 +67,18 @@ export function SiteHeader() {
           <a href="/#programmes" className={navLinkClass(false)}>
             Programmes
           </a>
-          <a href="/#about" className={navLinkClass(false)}>
+          <NavLink
+            to="/about"
+            className={({ isActive }) => navLinkClass(isActive || onAbout)}
+          >
             About Us
-          </a>
-          <a href="/#faq" className={navLinkClass(false)}>
+          </NavLink>
+          <NavLink
+            to="/faq"
+            className={({ isActive }) => navLinkClass(isActive || onFaq)}
+          >
             FAQ
-          </a>
+          </NavLink>
           {isAuthenticated ? (
             <>
               <NavLink

@@ -312,7 +312,10 @@ export type ProfilePhotographResponse = {
 
 export type OfferingDeclarationText = {
   id: string
+  /** All offering_declaration ids covered when the same text is on multiple programmes. */
+  ids?: string[]
   programmeOfferingId: string
+  programmeOfferingIds?: string[]
   declarationTypeId: string
   declarationText: string
   version: string

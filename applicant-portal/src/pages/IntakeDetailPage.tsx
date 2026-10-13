@@ -23,6 +23,7 @@ import { getApplicantIntake, listApplicantProgrammes } from '@/lib/api/admission
 import type { ApplicantIntake, ApplicantOffering } from '@/lib/api/types'
 import {
   academicYearFromDate,
+  CAMPUS_IMAGE_FALLBACK,
   campusImageForId,
   degreeLevelLabel,
   formatIntakeDate,
@@ -599,6 +600,11 @@ function ProgrammeCard({
           src={campusImageForId(offering.id)}
           alt=""
           className="h-full w-full object-cover"
+          loading="lazy"
+          onError={event => {
+            const el = event.currentTarget
+            if (el.src !== CAMPUS_IMAGE_FALLBACK) el.src = CAMPUS_IMAGE_FALLBACK
+          }}
         />
         {selected ? (
           <span className="absolute top-2.5 right-2.5 grid h-7 w-7 place-items-center rounded-full bg-[#0c3cff] text-white shadow">

@@ -498,8 +498,9 @@ export class ApplicantApplicationsController {
   @ApiOperation({
     summary: 'List offering declaration texts to accept',
     description:
-      'Returns ACTIVE offering_declarations for the programmes the applicant selected. ' +
-      'Applicant accepts those IDs via POST/PUT declaration (not free-text).',
+      'Returns unique ACTIVE declaration texts for the applicant’s selected programmes. ' +
+      'Identical text attached to multiple programmes (e.g. BS IT + Urdu) is collapsed to one item; ' +
+      '`ids` lists every offering_declaration covered. Accepting the item (or any id in `ids`) accepts all of them.',
   })
   @ApiWrappedOkArrayResponse(
     OfferingDeclarationForApplicantDto,
@@ -530,7 +531,7 @@ export class ApplicantApplicationsController {
   @ApiOperation({
     summary: 'Accept offering declarations',
     description:
-      'Accept all applicable IDs from GET .../declaration/texts and save the disciplinary disclosure. Test-centre assignment is determined from the applicant’s intake and first programme preference when an admit card is generated.',
+      'Accept the unique declaration text(s) from GET .../declaration/texts (send representative `id` or any of `ids`; the API expands to all matching offering declarations). Also saves the disciplinary disclosure.',
   })
   @ApiWrappedCreatedResponse(DeclarationStepResponseDto, 'Declaration created')
   createDeclaration(

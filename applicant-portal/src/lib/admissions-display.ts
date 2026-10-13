@@ -37,6 +37,27 @@ export function academicYearFromDate(iso: string) {
   return String(year)
 }
 
+/** Prefer year embedded in intake name/code (e.g. "Fall 2027") over application-open date. */
+export function intakeDisplayYear(intakeName: string, intakeCode: string, openAt: string) {
+  const match = `${intakeName} ${intakeCode}`.match(/\b(20\d{2})\b/)
+  if (match?.[1]) return match[1]
+  return academicYearFromDate(openAt)
+}
+
+export function intakeTermLabel(intakeName: string, intakeCode: string, openAt: string) {
+  const trimmed = intakeName.trim()
+  if (trimmed) return trimmed
+  return `${inferIntakeSeason(intakeName, intakeCode)} ${intakeDisplayYear(intakeName, intakeCode, openAt)}`
+}
+
+export function degreeLevelSortKey(level: string) {
+  const label = degreeLevelLabel(level).toLowerCase()
+  if (label === 'bachelor') return 0
+  if (label === 'master') return 1
+  if (label === 'doctorate') return 2
+  return 3
+}
+
 export function programmeInitials(code: string, name: string) {
   const fromCode = code.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase()
   if (fromCode.length >= 2) return fromCode.slice(0, 3)
@@ -101,16 +122,36 @@ export function formatCnic(value: string) {
   return `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12)}`
 }
 
+/** Campus / campus-life images (verified Unsplash 200). Used for intake side panel + programme cards. */
 const CAMPUS_IMAGES = [
-  'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1200&q=80',
 ]
 
 export function campusImageForId(id: string) {
   let hash = 0
-  for (let i = 0; i < id.length; i += 1) hash = (hash + id.charCodeAt(i) * (i + 1)) % CAMPUS_IMAGES.length
-  return CAMPUS_IMAGES[hash]
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash + id.charCodeAt(i) * (i + 1)) % CAMPUS_IMAGES.length
+  }
+  return CAMPUS_IMAGES[hash]!
 }
+
+/** Soft solid fallback when a remote image fails to load. */
+export const CAMPUS_IMAGE_FALLBACK =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#dbeafe"/>
+          <stop offset="100%" stop-color="#eef4ff"/>
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="800" fill="url(#g)"/>
+    </svg>`,
+  )
 
