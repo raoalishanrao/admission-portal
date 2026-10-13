@@ -1,4 +1,5 @@
 import type { ProcessingFeeChallan as ApiChallan } from '@/lib/api/types'
+import { HBL_LOGO_URL, UNIVERSITY_LOGO_URL } from '@/lib/brand-assets'
 import './ProcessingFeeChallan.css'
 
 export type ChallanData = {
@@ -169,13 +170,12 @@ function ChallanCopy({
   return (
     <article className="challan-copy">
       <header className="challan-top">
-        <div className="uni-logo" aria-hidden>
-          <div className="uni-logo-mark">IU</div>
-          <div className="uni-logo-text">
-            IQRA
-            <br />
-            UNIVERSITY
-          </div>
+        <div className="uni-logo">
+          <img
+            src={UNIVERSITY_LOGO_URL}
+            alt="Iqra University"
+            className="uni-logo-img"
+          />
         </div>
         <div className="bank-center">
           <div className="bank-line-1">{data.institutionName}</div>
@@ -183,14 +183,11 @@ function ChallanCopy({
           <div className="bank-line-3">{data.bankBranch}</div>
         </div>
         <div className="bank-logo-wrap">
-          {data.bankLogoUrl ? (
-            <img src={data.bankLogoUrl} alt={data.bankName} className="bank-logo-img" />
-          ) : (
-            <div className="bank-logo-fallback" aria-hidden>
-              <div className="bank-a">HBL</div>
-              <div className="bank-name">{data.bankName.toUpperCase()}</div>
-            </div>
-          )}
+          <img
+            src={data.bankLogoUrl || HBL_LOGO_URL}
+            alt={data.bankName || 'HBL'}
+            className="bank-logo-img"
+          />
         </div>
       </header>
 

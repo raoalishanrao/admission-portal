@@ -1,4 +1,5 @@
 import type { OfferFeeChallan } from '@/lib/api/types'
+import { HBL_LOGO_URL, UNIVERSITY_LOGO_URL } from '@/lib/brand-assets'
 import '@/components/processing-fee/ProcessingFeeChallan.css'
 
 type Props = {
@@ -105,13 +106,12 @@ function ChallanCopy({
   return (
     <article className="challan-copy">
       <header className="challan-top">
-        <div className="uni-logo" aria-hidden>
-          <div className="uni-logo-mark">IU</div>
-          <div className="uni-logo-text">
-            IQRA
-            <br />
-            UNIVERSITY
-          </div>
+        <div className="uni-logo">
+          <img
+            src={UNIVERSITY_LOGO_URL}
+            alt="Iqra University"
+            className="uni-logo-img"
+          />
         </div>
         <div className="bank-center">
           <div className="bank-line-1">
@@ -126,20 +126,11 @@ function ChallanCopy({
           </div>
         </div>
         <div className="bank-logo-wrap">
-          <div className="bank-logo-fallback" aria-hidden>
-            <div className="bank-a">
-              {bankName.toUpperCase().includes('ALLIED') ||
-              bankName.toUpperCase().includes('ABL')
-                ? 'ABL'
-                : bankName
-                    .split(/\s+/)
-                    .map((w) => w[0])
-                    .join('')
-                    .slice(0, 3)
-                    .toUpperCase() || 'BANK'}
-            </div>
-            <div className="bank-name">{bankName.toUpperCase()}</div>
-          </div>
+          <img
+            src={HBL_LOGO_URL}
+            alt={bankName || 'HBL'}
+            className="bank-logo-img"
+          />
         </div>
       </header>
 

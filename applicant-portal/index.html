@@ -11,6 +11,18 @@
       rel="stylesheet"
     />
     <title>Taleem AI — Applicant Portal</title>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('taleem-applicant-theme')
+          var dark =
+            stored === 'dark' ||
+            (stored === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          if (dark) document.documentElement.classList.add('dark')
+        } catch (_) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

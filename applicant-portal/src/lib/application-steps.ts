@@ -12,7 +12,7 @@ export const APPLICATION_STEPS: Array<{
     number: 1,
     title: 'Programme Selection',
     shortTitle: 'Programme',
-    description: 'Choose your preferred programmes for this intake.',
+    description: 'Choose your preferred programmes for this admission.',
   },
   {
     id: 'academic',

@@ -296,7 +296,7 @@ export function ProgrammeStep({
         <div>
           <p className="text-sm font-semibold text-[#071759]">Programme Availability</p>
           <p className="mt-0.5 text-xs text-[#354a8d]">
-            Programme availability will be validated against the published intake offering before
+            Programme availability will be validated against the published offering before
             saving your application.
           </p>
         </div>
@@ -393,7 +393,7 @@ function SelectedProgrammeCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <ProgrammeCardBody
           offering={offering}
-          note={`${offering.programme.name} is available for admission in the ${intakeName} intake cycle.`}
+          note={`${offering.programme.name} is available for admission in ${intakeName}.`}
         />
         <span className="inline-flex items-center gap-1 rounded-full bg-[#dcfce7] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#15803d]">
           <Check className="h-3.5 w-3.5" />

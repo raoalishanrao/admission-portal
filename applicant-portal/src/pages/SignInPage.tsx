@@ -280,7 +280,7 @@ export function SignInPage() {
                 </p>
               </div>
               <Link
-                to="/#intakes"
+                to="/#admissions"
                 className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-[#dce5f6] bg-white px-4 text-sm font-medium text-[#19316f] hover:bg-white"
               >
                 Create Application

@@ -94,7 +94,7 @@ export function OfferingDetailPage() {
         className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[#0c3cff] hover:underline"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to intake
+        Back to programmes
       </button>
 
       {loading ? (
@@ -126,7 +126,7 @@ export function OfferingDetailPage() {
               <p className="mt-1 text-sm text-[#354a8d]">{offering.programme.name}</p>
               {intake ? (
                 <p className="mt-2 text-xs text-[#6374ab]">
-                  Intake: {intake.intakeName} · {intake.intakeCode}
+                  {intake.intakeName}
                 </p>
               ) : null}
               <div className="mt-3 flex flex-wrap items-center gap-2">

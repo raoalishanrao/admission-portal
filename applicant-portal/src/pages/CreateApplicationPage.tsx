@@ -328,7 +328,7 @@ export function CreateApplicationPage() {
   if (error || !intake) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center">
-        <p className="text-sm text-red-600">{error ?? 'Intake not found.'}</p>
+        <p className="text-sm text-red-600">{error ?? 'Admissions not found.'}</p>
         <Link to="/" className="mt-4 inline-block text-sm font-medium text-[#0c3cff] hover:underline">
           Back to admissions
         </Link>

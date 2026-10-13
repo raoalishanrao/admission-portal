@@ -153,7 +153,7 @@ export function MyApplicationPage() {
           </div>
           {!loading && !row ? (
             <Link
-              to="/#intakes"
+              to="/#admissions"
               className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-[#0c3cff] px-4 text-sm font-medium text-white shadow-sm shadow-blue-200 hover:bg-[#0934dc]"
             >
               <Plus className="h-4 w-4" />
@@ -176,14 +176,14 @@ export function MyApplicationPage() {
                 No application yet
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm text-[#6374ab]">
-                You don&apos;t have an application yet. Choose an intake and
+                You don&apos;t have an application yet. Choose a programme and
                 create one to get started.
               </p>
               <Link
-                to="/#intakes"
+                to="/#admissions"
                 className="mt-6 inline-flex h-11 items-center gap-2 rounded-xl bg-[#0c3cff] px-5 text-sm font-medium text-white hover:bg-[#0934dc]"
               >
-                Browse intakes
+                Browse programmes
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>

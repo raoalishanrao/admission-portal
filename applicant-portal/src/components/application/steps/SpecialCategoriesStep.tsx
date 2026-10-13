@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Check, Info, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ApiError } from '@/lib/api/client'
 import {
@@ -7,6 +7,7 @@ import {
   saveSpecialCategoryClaims,
 } from '@/lib/api/applications'
 import type { SpecialCategoryOption } from '@/lib/api/types'
+import { cn } from '@/lib/utils'
 
 type Props = {
   applicantId: string
@@ -49,7 +50,6 @@ export function SpecialCategoriesStep({ applicantId, onSaved, onBack }: Props) {
         setTotalBonusMarks(data.totalBonusMarks ?? 0)
         const claims = data.claims ?? []
         const availableIdSet = new Set(availableRows.map(c => c.id))
-        // Only pre-select categories still offered for the applicant's programmes.
         setSelectedIds(
           new Set(
             claims
@@ -137,14 +137,26 @@ export function SpecialCategoriesStep({ applicantId, onSaved, onBack }: Props) {
     .reduce((sum, c) => sum + (Number(c.bonusMarks) || 0), 0)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-[#071759]">Special categories</h2>
-        <p className="mt-1 text-sm text-[#354a8d]">
+    <div className="space-y-5">
+      <header>
+        <h2 className="text-xl font-bold text-[#071759] sm:text-2xl">
+          Special categories
+        </h2>
+        <p className="mt-1.5 text-sm leading-relaxed text-[#5b6b94]">
           Optionally claim categories enabled for your selected programmes.
-          Bonus marks apply only where the programme allows them. You can
-          continue without selecting any.
+          Bonus marks apply only where the programme allows them.
         </p>
+      </header>
+
+      <div className="flex gap-3 rounded-xl border border-[#d6e4ff] bg-[#eef4ff] px-4 py-3.5">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-[#0c3cff]" strokeWidth={1.75} />
+        <div>
+          <p className="text-sm font-semibold text-[#071759]">How this works</p>
+          <p className="mt-1 text-sm leading-relaxed text-[#354a8d]">
+            Categories appear once even if several of your programmes enable
+            them. You can continue without selecting any.
+          </p>
+        </div>
       </div>
 
       {error ? (
@@ -153,74 +165,89 @@ export function SpecialCategoriesStep({ applicantId, onSaved, onBack }: Props) {
         </p>
       ) : null}
 
-      {available.length === 0 ? (
-        <p className="rounded-lg border border-[#e4e9f4] bg-[#f8faff] px-4 py-3 text-sm text-[#354a8d]">
-          No special categories are enabled for your selected programmes. You
-          can continue to the next step.
-        </p>
-      ) : (
-        <ul className="space-y-3">
-          {available.map(category => {
-            const checked = selectedIds.has(category.id)
-            const status = claimStatusByCategoryId[category.id]
-            return (
-              <li key={category.id}>
-                <label
-                  className={`flex cursor-pointer gap-3 rounded-xl border px-4 py-3 transition ${
-                    checked
-                      ? 'border-[#0c3cff] bg-[#f0f4ff]'
-                      : 'border-[#e4e9f4] bg-white hover:border-[#c5d0ef]'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4 rounded border-[#c5d0ef] text-[#0c3cff] focus:ring-[#0c3cff]"
-                    checked={checked}
-                    onChange={() => toggleCategory(category.id)}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-[#071759]">
-                        {category.name}
-                      </span>
-                      <span className="rounded-full bg-[#dbeafe] px-2 py-0.5 text-xs font-semibold text-[#1d4ed8]">
-                        +{category.bonusMarks} marks
-                      </span>
-                      {category.requiresEvidence ? (
-                        <span className="rounded-full bg-[#fff7ed] px-2 py-0.5 text-xs font-medium text-[#c2410c]">
-                          Evidence may be required
-                        </span>
-                      ) : null}
-                      {status ? (
-                        <span className="rounded-full bg-[#e8edf5] px-2 py-0.5 text-xs font-medium text-[#354a8d]">
-                          {claimStatusLabel(status)}
-                        </span>
-                      ) : null}
-                    </div>
-                    {category.description ? (
-                      <p className="mt-1 text-xs leading-relaxed text-[#6374ab]">
-                        {category.description}
-                      </p>
-                    ) : null}
-                  </div>
-                </label>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+      <article className="overflow-hidden rounded-2xl border border-[#e4e9f4] bg-white shadow-[0_1px_3px_rgb(15_31_77/0.04)]">
+        <div className="p-5 sm:p-6">
+          <div className="rounded-xl border border-[#dce5f6] bg-[#f5f8ff] p-4 sm:p-5">
+            <p className="text-sm font-semibold text-[#071759]">
+              Choose categories that apply to you.
+            </p>
 
-      <div className="rounded-lg border border-[#e4e9f4] bg-[#f8faff] px-4 py-3 text-sm text-[#354a8d]">
-        Estimated bonus if saved:{' '}
-        <span className="font-semibold text-[#071759]">+{previewBonus}</span>
-        {totalBonusMarks > 0 && previewBonus !== totalBonusMarks ? (
-          <span className="ml-2 text-xs text-[#6374ab]">
-            (currently saved: +{totalBonusMarks})
-          </span>
-        ) : null}
-      </div>
+            {available.length === 0 ? (
+              <p className="mt-4 rounded-lg border border-dashed border-[#c5d0ef] bg-white/70 px-3 py-8 text-center text-sm text-[#6374ab]">
+                No special categories are enabled for your selected programmes.
+              </p>
+            ) : (
+              <ul className="mt-3 divide-y divide-[#dce5f6] overflow-hidden rounded-lg border border-[#dce5f6] bg-white">
+                {available.map(category => {
+                  const checked = selectedIds.has(category.id)
+                  const status = claimStatusByCategoryId[category.id]
+                  return (
+                    <li key={category.id}>
+                      <button
+                        type="button"
+                        onClick={() => toggleCategory(category.id)}
+                        className={cn(
+                          'flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors',
+                          checked ? 'bg-[#f0f4ff]' : 'hover:bg-[#f8faff]',
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border',
+                            checked
+                              ? 'border-[#0c3cff] bg-[#0c3cff] text-white'
+                              : 'border-[#c5d0ef] bg-white',
+                          )}
+                          aria-hidden
+                        >
+                          {checked ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold text-[#071759]">
+                              {category.name}
+                            </span>
+                            <span className="rounded-full bg-[#dbeafe] px-2 py-0.5 text-xs font-semibold text-[#1d4ed8]">
+                              +{category.bonusMarks} marks
+                            </span>
+                            {category.requiresEvidence ? (
+                              <span className="rounded-full bg-[#fff7ed] px-2 py-0.5 text-xs font-medium text-[#c2410c]">
+                                Evidence may be required
+                              </span>
+                            ) : null}
+                            {status ? (
+                              <span className="rounded-full bg-[#e8edf5] px-2 py-0.5 text-xs font-medium text-[#354a8d]">
+                                {claimStatusLabel(status)}
+                              </span>
+                            ) : null}
+                          </div>
+                          {category.description ? (
+                            <p className="mt-1 text-xs leading-relaxed text-[#6374ab]">
+                              {category.description}
+                            </p>
+                          ) : null}
+                        </div>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e4e9f4] pt-4">
+          <p className="mt-4 text-sm text-[#354a8d]">
+            Estimated bonus if saved:{' '}
+            <span className="font-semibold text-[#071759]">+{previewBonus}</span>
+            {totalBonusMarks > 0 && previewBonus !== totalBonusMarks ? (
+              <span className="ml-2 text-xs text-[#6374ab]">
+                (currently saved: +{totalBonusMarks})
+              </span>
+            ) : null}
+          </p>
+        </div>
+      </article>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
         <Button type="button" variant="outline" onClick={onBack} disabled={saving}>
           Back
         </Button>

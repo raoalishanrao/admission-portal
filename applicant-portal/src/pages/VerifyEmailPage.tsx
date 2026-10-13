@@ -32,7 +32,7 @@ export function VerifyEmailPage() {
           </p>
         ) : null}
         {state.intakeName ? (
-          <p className="mt-3 text-xs text-[#6374ab]">Intake: {state.intakeName}</p>
+          <p className="mt-3 text-xs text-[#6374ab]">{state.intakeName}</p>
         ) : null}
         <Link
           to="/sign-in"

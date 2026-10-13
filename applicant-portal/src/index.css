@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "@fontsource-variable/inter";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Taleem AI Applicant Portal — shared semantic tokens with CMS. */
 :root {
   --background: #f8fafc;
@@ -23,6 +25,28 @@
   --input: #b8c6ed;
   --ring: #4f46e5;
   --radius: 0.625rem;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0b1220;
+  --foreground: #e8eef8;
+  --card: #121a2f;
+  --card-foreground: #e8eef8;
+  --popover: #121a2f;
+  --popover-foreground: #e8eef8;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #1a2438;
+  --secondary-foreground: #e8eef8;
+  --muted: #1a2438;
+  --muted-foreground: #94a3b8;
+  --accent: #1e3a5f;
+  --accent-foreground: #e8eef8;
+  --destructive: #f87171;
+  --border: #243044;
+  --input: #334155;
+  --ring: #60a5fa;
 }
 
 @theme inline {
@@ -76,3 +100,37 @@ button:disabled,
 [data-slot="button"] { border-radius: 7px; font-weight: 500; }
 [data-slot="input"], [data-slot="textarea"] { border-radius: 6px; color: #173076; }
 [data-slot="input"]::placeholder, [data-slot="textarea"]::placeholder { color: #6274ad; opacity: 1; }
+
+.dark [data-slot="card"] { box-shadow: 0 1px 2px rgb(0 0 0 / 0.35); }
+.dark [data-slot="sheet-content"] { box-shadow: -16px 0 48px rgb(0 0 0 / 0.45); }
+.dark [data-slot="sheet-overlay"] { background: rgb(0 0 0 / 0.55); }
+.dark [data-slot="input"],
+.dark [data-slot="textarea"] { color: #e8eef8; }
+.dark [data-slot="input"]::placeholder,
+.dark [data-slot="textarea"]::placeholder { color: #94a3b8; }
+
+/*
+ * Remap common light-only surfaces in dark mode. Prefer explicit `dark:` classes
+ * on new UI; these cover older hardcoded screens without fighting gradients.
+ */
+.dark .bg-white:not([class*="bg-gradient"]):not([class*="from-"]) {
+  background-color: var(--card) !important;
+}
+.dark .bg-\[\#f7f9fc\]:not([class*="bg-gradient"]),
+.dark .bg-\[\#f8faff\]:not([class*="bg-gradient"]),
+.dark .bg-\[\#f8fafc\]:not([class*="bg-gradient"]),
+.dark .bg-\[\#f5f8ff\]:not([class*="bg-gradient"]) {
+  background-color: #151d2e !important;
+}
+.dark .border-\[\#e8eef8\],
+.dark .border-\[\#e4e9f4\],
+.dark .border-\[\#dce5f6\],
+.dark .border-\[\#d6e4ff\],
+.dark .border-\[\#c5d0ef\],
+.dark .border-\[\#c5d0ea\] {
+  border-color: #243044 !important;
+}
+.dark .divide-\[\#dce5f6\] > :not([hidden]) ~ :not([hidden]),
+.dark .divide-\[\#e8edf5\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #243044 !important;
+}

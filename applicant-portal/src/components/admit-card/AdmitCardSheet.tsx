@@ -87,7 +87,7 @@ export function AdmitCardSheet({ card }: Props) {
             <dd>{card.gender || '—'}</dd>
           </div>
           <div className="admit-card-sheet__row">
-            <dt>Intake / session</dt>
+            <dt>Session</dt>
             <dd>{card.intakeSession || '—'}</dd>
           </div>
           <div className="admit-card-sheet__row">

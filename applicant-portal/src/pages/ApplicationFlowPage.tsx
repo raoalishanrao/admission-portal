@@ -142,7 +142,7 @@ export function ApplicationFlowPage() {
           const intakeData = await getApplicantIntake(intakeId)
           if (!cancelled) setIntake(intakeData)
         } else if (!cancelled) {
-          setError('Unable to resolve intake for this application.')
+          setError('Unable to load this application.')
         }
 
         const status = progress?.declaration?.applicationStatus?.toUpperCase()
@@ -235,7 +235,7 @@ export function ApplicationFlowPage() {
         className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-[#0c3cff] hover:underline"
       >
         <ArrowLeft className="h-4 w-4" />
-        {primaryOffering ? 'Back to Programme Details' : 'Back to Intake'}
+        {primaryOffering ? 'Back to Programme Details' : 'Back to Admissions'}
       </Link>
 
       {primaryOffering ? (

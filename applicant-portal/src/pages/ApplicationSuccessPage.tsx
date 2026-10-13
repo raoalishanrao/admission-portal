@@ -182,7 +182,7 @@ export function ApplicationSuccessPage() {
         <ApplicationSidebar
           intake={{
             id: binding?.intakeSessionId ?? 'unknown',
-            intakeName: state.intakeName || 'Admissions Intake',
+            intakeName: state.intakeName || 'Admissions',
             intakeCode: '',
             applicationOpenAt: new Date().toISOString(),
             applicationCloseAt: new Date().toISOString(),

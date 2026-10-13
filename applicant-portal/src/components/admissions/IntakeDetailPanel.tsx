@@ -64,7 +64,7 @@ export function IntakeDetailPanel({ intakeId }: Props) {
       })
       .catch((err: unknown) => {
         if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Unable to load intake details.')
+        setError(err instanceof Error ? err.message : 'Unable to load admissions details.')
         setIntake(null)
         setOfferings([])
       })
@@ -80,7 +80,7 @@ export function IntakeDetailPanel({ intakeId }: Props) {
   if (!intakeId) {
     return (
       <div className="flex h-full min-h-80 items-center justify-center rounded-xl border border-dashed border-[#dce5f6] bg-white px-6 text-center text-sm text-[#6374ab]">
-        Select an intake to view programmes and application details.
+        Select admissions to view programmes and application details.
       </div>
     )
   }
@@ -103,7 +103,7 @@ export function IntakeDetailPanel({ intakeId }: Props) {
   if (error || !intake) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-10 text-center text-sm text-red-700">
-        {error ?? 'Intake not found.'}
+        {error ?? 'Admissions not found.'}
       </div>
     )
   }
@@ -151,9 +151,9 @@ export function IntakeDetailPanel({ intakeId }: Props) {
         {tab === 'overview' && (
           <>
             <p className="text-sm leading-relaxed text-[#354a8d]">
-              Explore programmes offered in this intake, review important application dates, and
-              check entry criteria and fees for each programme. Applications will be enabled in a
-              later release.
+              Explore programmes offered for this admission period, review important application
+              dates, and check entry criteria and fees for each programme. Applications will be
+              enabled in a later release.
             </p>
 
             <div className="grid gap-3 sm:grid-cols-3">
@@ -285,7 +285,7 @@ function ProgrammeList({
 
       {rows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-[#dce5f6] px-4 py-8 text-center text-sm text-[#6374ab]">
-          No published programmes for this intake yet.
+          No published programmes yet.
         </p>
       ) : (
         <ul className="divide-y divide-[#e8edf5] overflow-hidden rounded-xl border border-[#e4e9f4]">
@@ -335,7 +335,7 @@ export function IntakeDetailLoadingHint() {
   return (
     <div className="flex items-center gap-2 text-sm text-[#6374ab]">
       <Loader2 className="h-4 w-4 animate-spin" />
-      Loading intake…
+      Loading admissions…
     </div>
   )
 }
