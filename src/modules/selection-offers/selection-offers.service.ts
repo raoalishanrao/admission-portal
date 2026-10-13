@@ -963,8 +963,60 @@ export class SelectionOffersService {
     }
     return { ...offer, feeChallan: challan };
   }
-  async getOffer(ctx:RequestContext,applicationId:string) { const r=await this.db.query(`SELECT * FROM admission_offers WHERE tenant_id=$1 AND application_record_id=$2 AND status IN ('PUBLISHED','ACCEPTED','DECLINED','EXPIRED') ORDER BY created_at DESC LIMIT 1`,[ctx.tenantId,applicationId]); if(!r[0])throw new NotFoundException('Published offer not found');return r[0]; }
-  async applicantOffer(ctx:RequestContext,userId:string) {
+  /**
+   * Staff: latest offer for an application (including AUTHORIZED), with fee
+   * challan + current payment evidence when present.
+   */
+  async findOfferBundleForApplication(
+    tenantId: string,
+    applicationId: string,
+    options?: { includeAuthorized?: boolean },
+  ) {
+    const includeAuthorized = options?.includeAuthorized !== false;
+    const statuses = includeAuthorized
+      ? `('AUTHORIZED','PUBLISHED','ACCEPTED','DECLINED','EXPIRED')`
+      : `('PUBLISHED','ACCEPTED','DECLINED','EXPIRED')`;
+    const offer = (
+      await this.db.query(
+        `SELECT *
+         FROM admission_offers
+         WHERE tenant_id = $1
+           AND application_record_id = $2
+           AND status IN ${statuses}
+         ORDER BY
+           CASE status
+             WHEN 'PUBLISHED' THEN 0
+             WHEN 'ACCEPTED' THEN 1
+             WHEN 'AUTHORIZED' THEN 2
+             ELSE 3
+           END,
+           created_at DESC
+         LIMIT 1`,
+        [tenantId, applicationId],
+      )
+    )[0] as Record<string, unknown> | undefined;
+    if (!offer) return null;
+    const bundle = await this.offerFees.getOfferFeeBundle(tenantId, applicationId, {
+      ensureIfPublished: true,
+    });
+    return {
+      ...offer,
+      feeChallan: bundle.challan,
+      currentEvidence: bundle.currentEvidence,
+    };
+  }
+
+  async getOffer(ctx: RequestContext, applicationId: string) {
+    const offer = await this.findOfferBundleForApplication(
+      ctx.tenantId,
+      applicationId,
+      { includeAuthorized: true },
+    );
+    if (!offer) throw new NotFoundException('Published offer not found');
+    return offer;
+  }
+
+  async applicantOffer(ctx: RequestContext, userId: string) {
     const r = await this.db.query(
       `SELECT o.*
        FROM admission_offers o

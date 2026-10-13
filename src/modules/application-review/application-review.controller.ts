@@ -40,7 +40,11 @@ export class ApplicationReviewController {
 
   @Get(':applicantId')
   @ApiParam({ name: 'applicantId', format: 'uuid' })
-  @ApiOperation({ summary: 'Review complete application details and decision readiness', description: 'Includes applicant profile, education and academic files, programme preferences, addresses, contacts, declaration, F004 documents, and F003 payment/evidence.' })
+  @ApiOperation({
+    summary: 'Review complete application details and decision readiness',
+    description:
+      'Includes applicant profile, education and academic files, programme preferences, addresses, contacts, declaration, F004 documents, F003 processing-fee payment/evidence, and when selected/offered: admission offer detail, offer fee challan, and offer payment evidence.',
+  })
   @ApiWrappedOkResponse(ApplicationReviewResponseDto)
   review(@ReqContext() ctx: RequestContext, @Param('applicantId', new ParseUuidPipe('applicantId')) id: string) { return this.service.review(ctx, id); }
 

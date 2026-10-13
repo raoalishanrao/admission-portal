@@ -111,6 +111,28 @@ export class ApplicationReviewResponseDto {
   @ApiPropertyOptional({ type: 'object', nullable: true, additionalProperties: true }) declaration!: Record<string, unknown> | null;
   @ApiProperty({ type: [Object] }) documents!: Record<string, unknown>[];
   @ApiProperty({ type: 'object', additionalProperties: true }) payment!: Record<string, unknown>;
+  @ApiPropertyOptional({
+    type: 'object',
+    nullable: true,
+    additionalProperties: true,
+    description:
+      'Admission offer when the applicant is selected/offered (includes nested feeChallan + currentEvidence)',
+  })
+  offer!: Record<string, unknown> | null;
+  @ApiPropertyOptional({
+    type: 'object',
+    nullable: true,
+    additionalProperties: true,
+    description: 'Admission/offer fee challan (tuition and related fees)',
+  })
+  feeChallan!: Record<string, unknown> | null;
+  @ApiPropertyOptional({
+    type: 'object',
+    nullable: true,
+    additionalProperties: true,
+    description: 'Current offer-fee payment evidence uploaded by the applicant',
+  })
+  currentEvidence!: Record<string, unknown> | null;
   @ApiProperty() approvalAllowed!: boolean;
   @ApiProperty({ type: [String] }) unmetPreconditions!: string[];
 }

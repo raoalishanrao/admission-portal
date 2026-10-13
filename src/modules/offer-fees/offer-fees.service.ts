@@ -95,6 +95,7 @@ export class OfferFeesService {
     const roles = new Set((ctx.roles ?? []).map((r) => String(r).toUpperCase()));
     if (
       ![
+        'ADMISSION_ADMIN',
         'ADMISSIONS_ADMIN',
         'ADMISSIONS_OFFICER',
         'TENANT_ADMIN',
@@ -1095,6 +1096,7 @@ export class OfferFeesService {
     if (!app) throw new NotFoundException('Application not found');
     const roles = new Set((user.roles ?? []).map((r) => String(r).toUpperCase()));
     const isStaff = [
+      'ADMISSION_ADMIN',
       'ADMISSIONS_ADMIN',
       'ADMISSIONS_OFFICER',
       'TENANT_ADMIN',

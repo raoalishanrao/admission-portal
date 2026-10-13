@@ -11,6 +11,7 @@ import { OBJECT_STORAGE, type ObjectStorage } from '../../integrations/storage/o
 import { AdmissionDocumentsService } from '../admission-documents/admission-documents.service.js';
 import { EntryTestService } from '../entry-test/entry-test.service.js';
 import { ProcessingFeeService } from '../processing-fee/processing-fee.service.js';
+import { SelectionOffersService } from '../selection-offers/selection-offers.service.js';
 import { ApplicationDecisionDto, ApplicationReviewQueue, ApplicationReviewQueryDto } from './dto/application-review.dto.js';
 
 const STAFF_ROLES = new Set(['ADMISSION_MANAGER','ADMISSIONS_MANAGER','ADMISSIONS_ADMIN','ADMISSIONS_OFFICER','ADMIN','SUPER_ADMIN']);
@@ -32,6 +33,7 @@ export class ApplicationReviewService {
     private readonly admissionDocuments: AdmissionDocumentsService,
     private readonly processingFees: ProcessingFeeService,
     private readonly entryTest: EntryTestService,
+    private readonly selectionOffers: SelectionOffersService,
     private readonly dataSource: DataSource,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
   ) {}
@@ -116,7 +118,7 @@ export class ApplicationReviewService {
   async review(user: RequestContext, applicantId: string) {
     this.assertStaff(user);
     const app = await this.getApplication(user.tenantId, applicantId);
-    const [intake, educationRows, options, addresses, contacts, declaration, documents, payment, readiness] = await Promise.all([
+    const [intake, educationRows, options, addresses, contacts, declaration, documents, payment, readiness, offer] = await Promise.all([
       this.intakes.findOneBy({ id: app.intakeId, tenantId: user.tenantId }),
       this.education.find({ where: { tenantId: user.tenantId, applicantId }, order: { createdAt: 'ASC' } }),
       this.programmeOptions.find({ where: { tenantId: user.tenantId, applicantId }, relations: { programmeOffering: { programme: true } }, order: { preferenceOrder: 'ASC' } }),
@@ -126,6 +128,10 @@ export class ApplicationReviewService {
       this.admissionDocuments.staffApplicationDocuments(user, applicantId),
       this.processingFees.applicationPayment(this.toAuthUser(user), applicantId),
       this.readiness(user.tenantId, app),
+      // Include offer + admission-fee challan + payment evidence when selected / offered
+      this.selectionOffers.findOfferBundleForApplication(user.tenantId, applicantId, {
+        includeAuthorized: true,
+      }),
     ]);
     const education = await Promise.all(educationRows.map(async row => ({
       id: row.id, degreeType: row.degreeType, rollNumber: row.rollNumber, qualificationName: row.qualificationName,
@@ -155,6 +161,9 @@ export class ApplicationReviewService {
       declaration,
       documents,
       payment,
+      offer: offer ?? null,
+      feeChallan: offer?.feeChallan ?? null,
+      currentEvidence: offer?.currentEvidence ?? null,
       approvalAllowed: readinessNow.approvalAllowed,
       unmetPreconditions: readinessNow.unmetPreconditions,
     };

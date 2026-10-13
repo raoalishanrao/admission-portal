@@ -68,7 +68,12 @@ export class SelectionOffersController {
       'Sets the offer PUBLISHED and auto-generates the admission/offer fee challan when missing. Response includes the offer row plus feeChallan (admission challan payload).',
   })
   publishOffer(@ReqContext() ctx:RequestContext,@Param('applicationId',new ParseUuidPipe('applicationId')) id:string){return this.service.publishOffer(ctx,id);}
-  @Get('applications/:applicationId/offer') @ApiOperation({ summary: 'Get an applicant offer as admissions staff' })
+  @Get('applications/:applicationId/offer')
+  @ApiOperation({
+    summary: 'Get an applicant offer as admissions staff',
+    description:
+      'Returns the offer row plus feeChallan (admission/offer fee) and currentEvidence (payment proof) when available. Includes AUTHORIZED offers.',
+  })
   adminOffer(@ReqContext() ctx:RequestContext,@Param('applicationId',new ParseUuidPipe('applicationId')) id:string){this.service.admin(ctx); return this.service.getOffer(ctx,id);}
 }
 

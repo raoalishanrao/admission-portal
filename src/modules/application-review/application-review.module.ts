@@ -5,6 +5,7 @@ import { StorageModule } from '../../integrations/storage/storage.module.js';
 import { AdmissionDocumentsModule } from '../admission-documents/admission-documents.module.js';
 import { EntryTestModule } from '../entry-test/entry-test.module.js';
 import { ProcessingFeeModule } from '../processing-fee/processing-fee.module.js';
+import { SelectionOffersModule } from '../selection-offers/selection-offers.module.js';
 import { ApplicationReviewController } from './application-review.controller.js';
 import { ApplicationReviewService } from './application-review.service.js';
 
@@ -14,6 +15,7 @@ import { ApplicationReviewService } from './application-review.service.js';
     AdmissionDocumentsModule,
     ProcessingFeeModule,
     EntryTestModule,
+    SelectionOffersModule,
     TypeOrmModule.forFeature([ApplicationEntity, IntakeEntity, ApplicationAcademicInformationEntity, ApplicationAcademicDocumentEntity, ApplicationProgrammeOptionEntity, ApplicationAddressEntity, ApplicationContactEntity, ApplicationDeclarationEntity, ApplicationStatusAuditEntity]),
   ],
   controllers: [ApplicationReviewController],
