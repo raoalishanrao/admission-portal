@@ -37,6 +37,7 @@ export function ApplicationSuccessPage() {
         academic: true,
         documents: true,
         profile: true,
+        specialCategories: true,
         declaration: true,
         review: true,
       }) satisfies Partial<Record<ApplicationStepId, boolean>>,

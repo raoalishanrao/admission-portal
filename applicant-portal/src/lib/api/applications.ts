@@ -4,8 +4,11 @@ import type {
   AcademicDocumentResponse,
   AcademicDocumentType,
   AcademicStepResponse,
+  AddressFields,
+  ApplicantSpecialCategoriesResponse,
   ApplicationAddressResponse,
   ApplicationContactResponse,
+  ContactFields,
   DeclarationStepResponse,
   OfferingDeclarationText,
   PaginatedItems,
@@ -17,10 +20,9 @@ import type {
   SaveDeclarationRequest,
   SaveProfileRequest,
   SaveProgrammeRequest,
+  SaveSpecialCategoryClaimsRequest,
   SubmitApplicationResponse,
   UpdateAcademicRequest,
-  AddressFields,
-  ContactFields,
 } from '@/lib/api/types'
 
 function base(applicantId: string) {
@@ -214,6 +216,24 @@ export async function uploadProfilePhotograph(applicantId: string, file: File) {
     API_ENDPOINTS.applicationPhotograph(base(applicantId)),
     formData,
   )
+  return response.data
+}
+
+export async function getSpecialCategories(applicantId: string) {
+  const response = await apiGet<ApplicantSpecialCategoriesResponse>(
+    API_ENDPOINTS.applicationSpecialCategories(base(applicantId)),
+  )
+  return response.data
+}
+
+export async function saveSpecialCategoryClaims(
+  applicantId: string,
+  body: SaveSpecialCategoryClaimsRequest,
+) {
+  const response = await apiPut<
+    ApplicantSpecialCategoriesResponse,
+    SaveSpecialCategoryClaimsRequest
+  >(API_ENDPOINTS.applicationSpecialCategories(base(applicantId)), body)
   return response.data
 }
 

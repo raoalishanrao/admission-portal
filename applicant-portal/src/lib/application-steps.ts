@@ -37,15 +37,23 @@ export const APPLICATION_STEPS: Array<{
       'Your personal details, photograph, address, parent/guardian, and emergency contact.',
   },
   {
-    id: 'declaration',
+    id: 'specialCategories',
     number: 5,
+    title: 'Special Categories',
+    shortTitle: 'Special',
+    description:
+      'Optional claims (Hafiz-e-Quran, Sports, etc.) that may add bonus marks to your merit score.',
+  },
+  {
+    id: 'declaration',
+    number: 6,
     title: 'Declarations',
     shortTitle: 'Declarations',
     description: 'Review and accept the required declarations.',
   },
   {
     id: 'review',
-    number: 6,
+    number: 7,
     title: 'Review & Submit',
     shortTitle: 'Review',
     description: 'Confirm your application and submit for review.',

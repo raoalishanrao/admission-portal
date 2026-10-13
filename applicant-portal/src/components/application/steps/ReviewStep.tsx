@@ -10,6 +10,7 @@ import {
   getDeclarationTexts,
   getProfileStep,
   getProgrammeStep,
+  getSpecialCategories,
   submitApplication,
 } from '@/lib/api/applications'
 import { getApplicantOffering } from '@/lib/api/admissions'
@@ -33,6 +34,7 @@ import type {
   DegreeLevel,
   OfferingDeclarationText,
   ProfileStepResponse,
+  SpecialCategoryClaim,
 } from '@/lib/api/types'
 
 type Props = {
@@ -75,6 +77,8 @@ export function ReviewStep({ applicantId, applicationReference, onBack, onSubmit
   const [acceptedIds, setAcceptedIds] = useState<string[]>([])
   const [declarationOk, setDeclarationOk] = useState(false)
   const [noDeclarations, setNoDeclarations] = useState(false)
+  const [specialClaims, setSpecialClaims] = useState<SpecialCategoryClaim[]>([])
+  const [specialBonusTotal, setSpecialBonusTotal] = useState(0)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -83,16 +87,25 @@ export function ReviewStep({ applicantId, applicationReference, onBack, onSubmit
       setLoading(true)
       setError(null)
       try {
-        const [programme, academic, profileData, addressList, contactList, declaration, texts] =
-          await Promise.all([
-            getProgrammeStep(applicantId),
-            getAcademicStep(applicantId),
-            getProfileStep(applicantId),
-            getAddresses(applicantId).catch(() => []),
-            getContacts(applicantId).catch(() => []),
-            getDeclarationStep(applicantId).catch(() => null),
-            getDeclarationTexts(applicantId).catch(() => []),
-          ])
+        const [
+          programme,
+          academic,
+          profileData,
+          addressList,
+          contactList,
+          declaration,
+          texts,
+          specialCategories,
+        ] = await Promise.all([
+          getProgrammeStep(applicantId),
+          getAcademicStep(applicantId),
+          getProfileStep(applicantId),
+          getAddresses(applicantId).catch(() => []),
+          getContacts(applicantId).catch(() => []),
+          getDeclarationStep(applicantId).catch(() => null),
+          getDeclarationTexts(applicantId).catch(() => []),
+          getSpecialCategories(applicantId).catch(() => null),
+        ])
         if (cancelled) return
 
         setLevel(programme.degreeLevel)
@@ -106,6 +119,8 @@ export function ReviewStep({ applicantId, applicationReference, onBack, onSubmit
         )
         setDeclarationTexts(Array.isArray(texts) ? texts : [])
         setAcceptedIds(declaration?.acceptedOfferingDeclarationIds ?? [])
+        setSpecialClaims(specialCategories?.claims ?? [])
+        setSpecialBonusTotal(specialCategories?.totalBonusMarks ?? 0)
 
         const noneConfigured = !texts || texts.length === 0
         setNoDeclarations(noneConfigured)
@@ -276,6 +291,32 @@ export function ReviewStep({ applicantId, applicationReference, onBack, onSubmit
             </div>
           ) : (
             <p className="text-sm text-[#6374ab]">Profile not saved yet.</p>
+          )}
+        </SummaryCard>
+
+        <SummaryCard title="Special Categories">
+          {specialClaims.length === 0 ? (
+            <p className="text-sm text-[#6374ab]">No special categories claimed.</p>
+          ) : (
+            <div className="space-y-2">
+              <ul className="space-y-2">
+                {specialClaims.map(claim => (
+                  <li
+                    key={claim.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#f8faff] px-3 py-2 text-sm"
+                  >
+                    <span className="font-medium text-[#071759]">{claim.categoryName}</span>
+                    <span className="text-xs text-[#6374ab]">
+                      +{claim.bonusMarks} · {claim.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-[#354a8d]">
+                Total bonus marks:{' '}
+                <span className="font-semibold text-[#071759]">+{specialBonusTotal}</span>
+              </p>
+            </div>
           )}
         </SummaryCard>
 

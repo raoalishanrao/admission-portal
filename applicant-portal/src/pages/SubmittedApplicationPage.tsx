@@ -29,6 +29,7 @@ import {
   getDeclarationTexts,
   getProfileStep,
   getProgrammeStep,
+  getSpecialCategories,
 } from '@/lib/api/applications'
 import { ApiError } from '@/lib/api/client'
 import {
@@ -65,6 +66,7 @@ import type {
   PaymentEvidence,
   ProcessingFeeStatusResponse,
   ProfileStepResponse,
+  SpecialCategoryClaim,
 } from '@/lib/api/types'
 
 function optionLabel(
@@ -183,6 +185,8 @@ export function SubmittedApplicationPage() {
   const [profile, setProfile] = useState<ProfileStepResponse | null>(null)
   const [addresses, setAddresses] = useState<ApplicationAddressResponse[]>([])
   const [contacts, setContacts] = useState<ApplicationContactResponse[]>([])
+  const [specialClaims, setSpecialClaims] = useState<SpecialCategoryClaim[]>([])
+  const [specialBonusTotal, setSpecialBonusTotal] = useState(0)
   const [declarationTexts, setDeclarationTexts] = useState<
     OfferingDeclarationText[]
   >([])
@@ -242,6 +246,7 @@ export function SubmittedApplicationPage() {
         contactList,
         declaration,
         texts,
+        specialCategories,
         fee,
         evidenceRows,
         online,
@@ -254,6 +259,7 @@ export function SubmittedApplicationPage() {
         getContacts(applicantId).catch(() => []),
         getDeclarationStep(applicantId).catch(() => null),
         getDeclarationTexts(applicantId).catch(() => []),
+        getSpecialCategories(applicantId).catch(() => null),
         getProcessingFeeStatus(applicantId).catch(() => null),
         listPaymentEvidence(applicantId).catch(() => [] as PaymentEvidence[]),
         getOnlinePaymentStatus(applicantId).catch((err) => {
@@ -272,6 +278,8 @@ export function SubmittedApplicationPage() {
       setContacts(
         contactList.length > 0 ? contactList : (profileData.contacts ?? []),
       )
+      setSpecialClaims(specialCategories?.claims ?? [])
+      setSpecialBonusTotal(specialCategories?.totalBonusMarks ?? 0)
       setDeclarationTexts(texts)
       setAcceptedIds(declaration?.acceptedOfferingDeclarationIds ?? [])
       setApplicationStatus(
@@ -786,6 +794,41 @@ export function SubmittedApplicationPage() {
                 </div>
               ) : (
                 <p className="text-sm text-[#6374ab]">Profile not available.</p>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              icon={<Trophy className="h-5 w-5" />}
+              title="Special categories"
+            >
+              {specialClaims.length === 0 ? (
+                <p className="text-sm text-[#6374ab]">
+                  No special categories claimed.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <ul className="space-y-2">
+                    {specialClaims.map((claim) => (
+                      <li
+                        key={claim.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f8faff] px-4 py-3 text-sm"
+                      >
+                        <span className="font-semibold text-[#071759]">
+                          {claim.categoryName}
+                        </span>
+                        <span className="text-xs text-[#6374ab]">
+                          +{claim.bonusMarks} · {claim.status}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-sm text-[#6374ab]">
+                    Total bonus marks:{' '}
+                    <span className="font-semibold text-[#071759]">
+                      +{specialBonusTotal}
+                    </span>
+                  </p>
+                </div>
               )}
             </SectionCard>
 

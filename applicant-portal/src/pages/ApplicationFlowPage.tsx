@@ -9,6 +9,7 @@ import { DocumentsStep } from '@/components/application/steps/DocumentsStep'
 import { ProgrammeStep } from '@/components/application/steps/ProgrammeStep'
 import { ProfileStep } from '@/components/application/steps/ProfileStep'
 import { ReviewStep } from '@/components/application/steps/ReviewStep'
+import { SpecialCategoriesStep } from '@/components/application/steps/SpecialCategoriesStep'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/context/AuthContext'
 import {
@@ -17,6 +18,7 @@ import {
   getDeclarationTexts,
   getProfileStep,
   getProgrammeStep,
+  getSpecialCategories,
 } from '@/lib/api/applications'
 import { getApplicantIntake, getApplicantOffering } from '@/lib/api/admissions'
 import { getDocumentRequirements } from '@/lib/api/documents'
@@ -49,19 +51,36 @@ export function ApplicationFlowPage() {
 
   const refreshProgress = useCallback(async () => {
     if (!applicantId) return
-    const [programme, academic, profile, declaration, declarationTexts, docReqs] =
-      await Promise.all([
-        getProgrammeStep(applicantId).catch(() => null),
-        getAcademicStep(applicantId).catch(() => null),
-        getProfileStep(applicantId).catch(() => null),
-        getDeclarationStep(applicantId).catch(() => null),
-        getDeclarationTexts(applicantId).catch(() => []),
-        getDocumentRequirements(applicantId).catch(() => []),
-      ])
+    const [
+      programme,
+      academic,
+      profile,
+      declaration,
+      declarationTexts,
+      docReqs,
+      specialCategories,
+    ] = await Promise.all([
+      getProgrammeStep(applicantId).catch(() => null),
+      getAcademicStep(applicantId).catch(() => null),
+      getProfileStep(applicantId).catch(() => null),
+      getDeclarationStep(applicantId).catch(() => null),
+      getDeclarationTexts(applicantId).catch(() => []),
+      getDocumentRequirements(applicantId).catch(() => []),
+      getSpecialCategories(applicantId).catch(() => null),
+    ])
 
     const programmeSaved = !!programme?.programmeStepSaved
     const academicSaved = !!academic?.academicStepSaved
     const profileSaved = !!profile?.profileStepSaved
+    const specialCategoriesVisited =
+      typeof window !== 'undefined' &&
+      sessionStorage.getItem(`special-categories-step:${applicantId}`) === '1'
+    const specialCategoriesComplete =
+      profileSaved &&
+      (specialCategoriesVisited ||
+        (specialCategories != null &&
+          ((specialCategories.claims?.length ?? 0) > 0 ||
+            (specialCategories.available?.length ?? 0) === 0)))
     const noDeclarations = !declarationTexts || declarationTexts.length === 0
     const mandatoryDocs = docReqs.filter((r) => r.mandatory || r.conditionCode)
     // Do not treat "no slots yet" as complete before earlier steps are done —
@@ -72,7 +91,7 @@ export function ApplicationFlowPage() {
       (mandatoryDocs.length === 0 ||
         mandatoryDocs.every((r) => r.status !== 'NOT_SUBMITTED'))
     const declarationComplete =
-      profileSaved &&
+      specialCategoriesComplete &&
       (noDeclarations ||
         !!(declaration?.declarationStepSaved && declaration.declarationAccepted))
     const nextCompleted: Partial<Record<ApplicationStepId, boolean>> = {
@@ -80,6 +99,7 @@ export function ApplicationFlowPage() {
       academic: academicSaved,
       documents: documentsComplete,
       profile: profileSaved,
+      specialCategories: specialCategoriesComplete,
       declaration: declarationComplete,
       review: declaration?.applicationStatus === 'SUBMITTED',
     }
@@ -194,7 +214,8 @@ export function ApplicationFlowPage() {
       programme: 'academic',
       academic: 'documents',
       documents: 'profile',
-      profile: 'declaration',
+      profile: 'specialCategories',
+      specialCategories: 'declaration',
       declaration: 'review',
       review: null,
     }
@@ -312,10 +333,25 @@ export function ApplicationFlowPage() {
               />
             ) : null}
 
+            {currentStep === 'specialCategories' ? (
+              <SpecialCategoriesStep
+                applicantId={applicantId}
+                onBack={() => setCurrentStep('profile')}
+                onSaved={() => {
+                  sessionStorage.setItem(
+                    `special-categories-step:${applicantId}`,
+                    '1',
+                  )
+                  void refreshProgress()
+                  goNext('specialCategories')
+                }}
+              />
+            ) : null}
+
             {currentStep === 'declaration' ? (
               <DeclarationStep
                 applicantId={applicantId}
-                onBack={() => setCurrentStep('profile')}
+                onBack={() => setCurrentStep('specialCategories')}
                 onSaved={() => {
                   void refreshProgress()
                   goNext('declaration')

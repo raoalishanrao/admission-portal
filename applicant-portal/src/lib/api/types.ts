@@ -373,8 +373,47 @@ export type ApplicationStepId =
   | 'academic'
   | 'documents'
   | 'profile'
+  | 'specialCategories'
   | 'declaration'
   | 'review'
+
+export type SpecialCategoryClaimStatus = 'CLAIMED' | 'VERIFIED' | 'REJECTED'
+
+export type SpecialCategoryOption = {
+  id: string
+  tenantId: string
+  code: string
+  name: string
+  description: string | null
+  bonusMarks: number
+  stackable: boolean
+  requiresEvidence: boolean
+  status: string
+  sortOrder: number
+}
+
+export type SpecialCategoryClaim = {
+  id: string
+  applicantId: string
+  specialCategoryId: string
+  categoryCode: string
+  categoryName: string
+  bonusMarks: number
+  requiresEvidence: boolean
+  status: SpecialCategoryClaimStatus
+  rejectionReason: string | null
+  reviewedAt: string | null
+}
+
+export type ApplicantSpecialCategoriesResponse = {
+  available: SpecialCategoryOption[]
+  claims: SpecialCategoryClaim[]
+  totalBonusMarks: number
+}
+
+export type SaveSpecialCategoryClaimsRequest = {
+  specialCategoryIds: string[]
+}
 
 export type ProcessingFeeChallanItem = {
   id: string

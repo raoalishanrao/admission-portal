@@ -51,6 +51,8 @@ export const API_ENDPOINTS = {
     `/api/v1/applicants/applications/${applicantId}/profile`,
   applicationPhotograph: (applicantId: string) =>
     `/api/v1/applicants/applications/${applicantId}/profile/photograph`,
+  applicationSpecialCategories: (applicantId: string) =>
+    `/api/v1/applicants/applications/${applicantId}/special-categories`,
   applicationDeclaration: (applicantId: string) =>
     `/api/v1/applicants/applications/${applicantId}/declaration`,
   applicationDeclarationTexts: (applicantId: string) =>
