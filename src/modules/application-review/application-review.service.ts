@@ -237,10 +237,27 @@ export class ApplicationReviewService {
     const paymentVerified = VERIFIED_PAYMENT.has(app.processingFeeStatus);
     const documents = await this.admissionDocuments.reviewCompleteness(tenantId, app.id);
     const unmetPreconditions: string[] = [];
-    if (![ApplicationStatus.COMPLETE, ApplicationStatus.SUBMITTED].includes(app.applicationStatus as ApplicationStatus)) unmetPreconditions.push('APPLICATION_NOT_SUBMITTED');
+    const status = app.applicationStatus as ApplicationStatus;
+    // Already decided apps are past submission; only pre-submit statuses are "not submitted".
+    const submittedOrLater = [
+      ApplicationStatus.COMPLETE,
+      ApplicationStatus.SUBMITTED,
+      ApplicationStatus.APPROVED,
+      ApplicationStatus.REJECTED,
+    ].includes(status);
+    if (!submittedOrLater) unmetPreconditions.push('APPLICATION_NOT_SUBMITTED');
     if (!paymentVerified) unmetPreconditions.push('PROCESSING_FEE_NOT_VERIFIED');
     if (!documents.complete) unmetPreconditions.push('DOCUMENT_SET_INCOMPLETE');
-    return { paymentVerified, documentsComplete: documents.complete, approvalAllowed: unmetPreconditions.length === 0, unmetPreconditions };
+    // Approval is only for submitted/complete apps that still need a decision.
+    const approvalAllowed =
+      [ApplicationStatus.COMPLETE, ApplicationStatus.SUBMITTED].includes(status) &&
+      unmetPreconditions.length === 0;
+    return {
+      paymentVerified,
+      documentsComplete: documents.complete,
+      approvalAllowed,
+      unmetPreconditions,
+    };
   }
   private matchesQueue(app: ApplicationEntity, readiness: Awaited<ReturnType<ApplicationReviewService['readiness']>>, queue: ApplicationReviewQueue) {
     const paid = readiness.paymentVerified; const docs = readiness.documentsComplete;
