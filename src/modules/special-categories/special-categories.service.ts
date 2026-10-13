@@ -11,21 +11,27 @@ import { In, Repository } from 'typeorm';
 import type { AuthUser } from '../../common/decorators/current-user.decorator.js';
 import type { RequestContext } from '../../common/decorators/request-context.decorator.js';
 import { ApplicationStatus } from '../../common/enums/application-status.enum.js';
+import { EDITABLE_OFFERING_STATUSES } from '../../common/enums/offering-status.enum.js';
 import {
   SpecialCategoryClaimStatus,
   SpecialCategoryCode,
   SpecialCategoryStatus,
 } from '../../common/enums/special-category.enum.js';
 import { BusinessException } from '../../common/exceptions/business.exception.js';
+import { ApplicationProgrammeOptionEntity } from '../../database/entities/application-programme-options.entity.js';
 import { ApplicationSpecialCategoryClaimEntity } from '../../database/entities/application-special-category-claim.entity.js';
 import { ApplicationEntity } from '../../database/entities/application.entity.js';
+import { OfferingSpecialCategoryEntity } from '../../database/entities/offering-special-category.entity.js';
+import { ProgrammeOfferingEntity } from '../../database/entities/programme-offering.entity.js';
 import { SpecialCategoryEntity } from '../../database/entities/special-category.entity.js';
 import type {
   ApplicantSpecialCategoriesResponseDto,
   CreateSpecialCategoryDto,
   ListSpecialCategoriesQueryDto,
+  OfferingSpecialCategoriesResponseDto,
   ReviewSpecialCategoryClaimDto,
   SaveSpecialCategoryClaimsDto,
+  SetOfferingSpecialCategoriesDto,
   SpecialCategoryClaimResponseDto,
   SpecialCategoryListResponseDto,
   SpecialCategoryResponseDto,
@@ -104,10 +110,16 @@ export class SpecialCategoriesService {
   constructor(
     @InjectRepository(SpecialCategoryEntity)
     private readonly categories: Repository<SpecialCategoryEntity>,
+    @InjectRepository(OfferingSpecialCategoryEntity)
+    private readonly offeringLinks: Repository<OfferingSpecialCategoryEntity>,
     @InjectRepository(ApplicationSpecialCategoryClaimEntity)
     private readonly claims: Repository<ApplicationSpecialCategoryClaimEntity>,
     @InjectRepository(ApplicationEntity)
     private readonly applications: Repository<ApplicationEntity>,
+    @InjectRepository(ApplicationProgrammeOptionEntity)
+    private readonly programmeOptions: Repository<ApplicationProgrammeOptionEntity>,
+    @InjectRepository(ProgrammeOfferingEntity)
+    private readonly offerings: Repository<ProgrammeOfferingEntity>,
   ) {}
 
   /* ── Admin catalogue ───────────────────────────────────────────── */
@@ -215,8 +227,89 @@ export class SpecialCategoriesService {
       await this.categories.save(row);
       return { deleted: true, id };
     }
+    // Clear offering links before hard delete (DB also cascades).
+    await this.offeringLinks.delete({ tenantId: ctx.tenantId, specialCategoryId: id });
     await this.categories.remove(row);
     return { deleted: true, id };
+  }
+
+  /* ── Offering links ────────────────────────────────────────────── */
+
+  async listOfferingSpecialCategories(
+    ctx: RequestContext,
+    offeringId: string,
+  ): Promise<OfferingSpecialCategoriesResponseDto> {
+    this.assertStaff(ctx);
+    await this.requireOffering(ctx.tenantId, offeringId);
+    const links = await this.offeringLinks.find({
+      where: { tenantId: ctx.tenantId, programmeOfferingId: offeringId },
+    });
+    if (!links.length) {
+      return { programmeOfferingId: offeringId, items: [] };
+    }
+    const cats = await this.categories.find({
+      where: {
+        tenantId: ctx.tenantId,
+        id: In(links.map((l) => l.specialCategoryId)),
+      },
+      order: { sortOrder: 'ASC', name: 'ASC' },
+    });
+    return {
+      programmeOfferingId: offeringId,
+      items: cats.map((c) => this.toCategory(c)),
+    };
+  }
+
+  async setOfferingSpecialCategories(
+    ctx: RequestContext,
+    offeringId: string,
+    dto: SetOfferingSpecialCategoriesDto,
+  ): Promise<OfferingSpecialCategoriesResponseDto> {
+    this.assertStaff(ctx);
+    const offering = await this.requireOffering(ctx.tenantId, offeringId);
+    this.assertOfferingEditable(offering);
+
+    const requestedIds = [...new Set(dto.specialCategoryIds)];
+    const cats =
+      requestedIds.length === 0
+        ? []
+        : await this.categories.find({
+            where: {
+              tenantId: ctx.tenantId,
+              id: In(requestedIds),
+              status: SpecialCategoryStatus.ACTIVE,
+            },
+          });
+    if (cats.length !== requestedIds.length) {
+      throw new BadRequestException(
+        'One or more special categories are invalid or inactive',
+      );
+    }
+
+    const existing = await this.offeringLinks.find({
+      where: { tenantId: ctx.tenantId, programmeOfferingId: offeringId },
+    });
+    const keep = new Set(requestedIds);
+    const toRemove = existing.filter((row) => !keep.has(row.specialCategoryId));
+    if (toRemove.length) await this.offeringLinks.remove(toRemove);
+
+    const existingIds = new Set(existing.map((r) => r.specialCategoryId));
+    const toAdd = requestedIds.filter((id) => !existingIds.has(id));
+    if (toAdd.length) {
+      await this.offeringLinks.save(
+        toAdd.map((specialCategoryId) =>
+          this.offeringLinks.create({
+            tenantId: ctx.tenantId,
+            programmeOfferingId: offeringId,
+            specialCategoryId,
+            createdBy: ctx.userId,
+            updatedBy: ctx.userId,
+          }),
+        ),
+      );
+    }
+
+    return this.listOfferingSpecialCategories(ctx, offeringId);
   }
 
   /* ── Applicant claims ──────────────────────────────────────────── */
@@ -227,18 +320,26 @@ export class SpecialCategoriesService {
   ): Promise<ApplicantSpecialCategoriesResponseDto> {
     const app = await this.requireOwned(user, applicantId);
     await this.ensureDefaults(app.tenantId, user.userId);
-    const available = await this.categories.find({
-      where: {
-        tenantId: app.tenantId,
-        status: SpecialCategoryStatus.ACTIVE,
-      },
-      order: { sortOrder: 'ASC', name: 'ASC' },
-    });
+    const availableIds = await this.categoryIdsForApplicantOfferings(
+      app.tenantId,
+      applicantId,
+    );
+    const available =
+      availableIds.length === 0
+        ? []
+        : await this.categories.find({
+            where: {
+              tenantId: app.tenantId,
+              id: In(availableIds),
+              status: SpecialCategoryStatus.ACTIVE,
+            },
+            order: { sortOrder: 'ASC', name: 'ASC' },
+          });
     const claims = await this.claims.find({
       where: { tenantId: app.tenantId, applicantId },
     });
     const byId = new Map(available.map((c) => [c.id, c]));
-    // Include inactive categories still claimed.
+    // Include inactive / unlinked categories still claimed.
     const missingIds = claims
       .map((c) => c.specialCategoryId)
       .filter((id) => !byId.has(id));
@@ -255,10 +356,15 @@ export class SpecialCategoriesService {
       })
       .filter((x): x is SpecialCategoryClaimResponseDto => x != null);
 
+    const availableIdSet = new Set(available.map((c) => c.id));
+    const eligibleForApplicant = claimDtos.filter((c) =>
+      availableIdSet.has(c.specialCategoryId),
+    );
+
     return {
       available: available.map((c) => this.toCategory(c)),
       claims: claimDtos,
-      totalBonusMarks: this.sumEligibleBonus(claimDtos),
+      totalBonusMarks: this.sumEligibleBonus(eligibleForApplicant),
     };
   }
 
@@ -270,7 +376,26 @@ export class SpecialCategoriesService {
     const app = await this.requireOwnedEditable(user, applicantId);
     await this.ensureDefaults(app.tenantId, user.userId);
 
+    const allowedIds = new Set(
+      await this.categoryIdsForApplicantOfferings(app.tenantId, applicantId),
+    );
+    const existing = await this.claims.find({
+      where: { tenantId: app.tenantId, applicantId },
+    });
+    const existingByCat = new Map(
+      existing.map((c) => [c.specialCategoryId, c]),
+    );
+
     const requestedIds = [...new Set(dto.specialCategoryIds)];
+    for (const id of requestedIds) {
+      // New claims must be enabled for the applicant's selected offerings.
+      // Existing claims (e.g. after programme change) may be retained.
+      if (!allowedIds.has(id) && !existingByCat.has(id)) {
+        throw new BadRequestException(
+          'One or more special categories are not enabled for your selected programmes',
+        );
+      }
+    }
     const cats =
       requestedIds.length === 0
         ? []
@@ -292,16 +417,14 @@ export class SpecialCategoriesService {
       this.assertClaimAllowed(app, cat);
     }
 
-    const existing = await this.claims.find({
-      where: { tenantId: app.tenantId, applicantId },
-    });
-    const existingByCat = new Map(
-      existing.map((c) => [c.specialCategoryId, c]),
-    );
     const keep = new Set(requestedIds);
 
     for (const row of existing) {
       if (!keep.has(row.specialCategoryId)) {
+        // Keep orphan claims when the category is no longer offered for current programmes.
+        if (!allowedIds.has(row.specialCategoryId)) {
+          continue;
+        }
         if (row.status === SpecialCategoryClaimStatus.VERIFIED) {
           throw new ConflictException(
             'Cannot remove a verified special category claim; contact admissions',
@@ -422,13 +545,24 @@ export class SpecialCategoriesService {
 
   /**
    * Eligible bonus marks for merit generation (CLAIMED or VERIFIED).
+   * When programmeOfferingId is set, only categories linked to that offering count.
    */
   async getEligibleBonusesForApplicants(
     tenantId: string,
     applicantIds: string[],
+    programmeOfferingId?: string,
   ): Promise<Map<string, SpecialCategoryBonusItem[]>> {
     const result = new Map<string, SpecialCategoryBonusItem[]>();
     if (!applicantIds.length) return result;
+
+    let allowedCategoryIds: Set<string> | null = null;
+    if (programmeOfferingId) {
+      const links = await this.offeringLinks.find({
+        where: { tenantId, programmeOfferingId },
+      });
+      allowedCategoryIds = new Set(links.map((l) => l.specialCategoryId));
+      if (allowedCategoryIds.size === 0) return result;
+    }
 
     const claims = await this.claims.find({
       where: {
@@ -452,6 +586,12 @@ export class SpecialCategoriesService {
     const catById = new Map(cats.map((c) => [c.id, c]));
 
     for (const claim of claims) {
+      if (
+        allowedCategoryIds &&
+        !allowedCategoryIds.has(claim.specialCategoryId)
+      ) {
+        continue;
+      }
       const cat = catById.get(claim.specialCategoryId);
       if (!cat) continue;
       const bonus = Number(cat.bonusMarks);
@@ -482,6 +622,43 @@ export class SpecialCategoriesService {
   }
 
   /* ── Helpers ───────────────────────────────────────────────────── */
+
+  /** Union of special category IDs linked to the applicant's selected offerings. */
+  private async categoryIdsForApplicantOfferings(
+    tenantId: string,
+    applicantId: string,
+  ): Promise<string[]> {
+    const options = await this.programmeOptions.find({
+      where: { tenantId, applicantId },
+    });
+    if (!options.length) return [];
+    const offeringIds = [
+      ...new Set(options.map((o) => o.programmeOfferingId)),
+    ];
+    const links = await this.offeringLinks.find({
+      where: {
+        tenantId,
+        programmeOfferingId: In(offeringIds),
+      },
+    });
+    return [...new Set(links.map((l) => l.specialCategoryId))];
+  }
+
+  private async requireOffering(tenantId: string, offeringId: string) {
+    const row = await this.offerings.findOneBy({ id: offeringId, tenantId });
+    if (!row) throw new NotFoundException('Programme offering not found');
+    return row;
+  }
+
+  private assertOfferingEditable(row: ProgrammeOfferingEntity) {
+    if (
+      !EDITABLE_OFFERING_STATUSES.includes(row.offeringStatus as never)
+    ) {
+      throw new ConflictException(
+        'Special categories can only be configured while the offering is editable',
+      );
+    }
+  }
 
   private async ensureDefaults(tenantId: string, userId: string) {
     const count = await this.categories.count({ where: { tenantId } });

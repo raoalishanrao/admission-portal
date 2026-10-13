@@ -168,6 +168,27 @@ export class SaveSpecialCategoryClaimsDto {
   specialCategoryIds!: string[];
 }
 
+export class SetOfferingSpecialCategoriesDto {
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Special category IDs enabled for this programme offering. Empty clears all.',
+  })
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  specialCategoryIds!: string[];
+}
+
+export class OfferingSpecialCategoriesResponseDto {
+  @ApiProperty()
+  programmeOfferingId!: string;
+
+  @ApiProperty({ type: [SpecialCategoryResponseDto] })
+  items!: SpecialCategoryResponseDto[];
+}
+
 export class SpecialCategoryClaimResponseDto {
   @ApiProperty() id!: string;
   @ApiProperty() applicantId!: string;

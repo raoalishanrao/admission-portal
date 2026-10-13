@@ -35,8 +35,10 @@ import {
   ApplicantSpecialCategoriesResponseDto,
   CreateSpecialCategoryDto,
   ListSpecialCategoriesQueryDto,
+  OfferingSpecialCategoriesResponseDto,
   ReviewSpecialCategoryClaimDto,
   SaveSpecialCategoryClaimsDto,
+  SetOfferingSpecialCategoriesDto,
   SpecialCategoryClaimResponseDto,
   SpecialCategoryListResponseDto,
   SpecialCategoryResponseDto,
@@ -149,6 +151,52 @@ export class SpecialCategoriesAdminController {
   }
 }
 
+@ApiTags('Offering Special Categories')
+@ApiBearerAuth('bearer')
+@ApiExtraModels(
+  OfferingSpecialCategoriesResponseDto,
+  SetOfferingSpecialCategoriesDto,
+  SpecialCategoryResponseDto,
+  ApiErrorResponseDto,
+)
+@ApiTenantHeaders()
+@ApiStandardErrorResponses()
+@Controller('admissions/offerings/:offeringId/special-categories')
+export class OfferingSpecialCategoriesAdminController {
+  constructor(private readonly service: SpecialCategoriesService) {}
+
+  @Get()
+  @ApiParam({ name: 'offeringId', format: 'uuid' })
+  @ApiOperation({
+    summary: 'List special categories linked to a programme offering',
+    description:
+      'Only linked categories are offered to applicants who select this programme and count toward merit for this offering.',
+  })
+  @ApiWrappedOkResponse(OfferingSpecialCategoriesResponseDto)
+  list(
+    @ReqContext() ctx: RequestContext,
+    @Param('offeringId', new ParseUuidPipe('offeringId')) offeringId: string,
+  ): Promise<OfferingSpecialCategoriesResponseDto> {
+    return this.service.listOfferingSpecialCategories(ctx, offeringId);
+  }
+
+  @Put()
+  @ApiParam({ name: 'offeringId', format: 'uuid' })
+  @ApiOperation({
+    summary: 'Replace special categories linked to a programme offering',
+    description:
+      'Pass the full set of category IDs for this offering (e.g. enable Hafiz for Urdu only). Empty array clears all links.',
+  })
+  @ApiWrappedOkResponse(OfferingSpecialCategoriesResponseDto)
+  set(
+    @ReqContext() ctx: RequestContext,
+    @Param('offeringId', new ParseUuidPipe('offeringId')) offeringId: string,
+    @Body() dto: SetOfferingSpecialCategoriesDto,
+  ): Promise<OfferingSpecialCategoriesResponseDto> {
+    return this.service.setOfferingSpecialCategories(ctx, offeringId, dto);
+  }
+}
+
 @ApiTags('Applicant Special Categories')
 @ApiBearerAuth('bearer')
 @ApiExtraModels(
@@ -167,8 +215,8 @@ export class ApplicantSpecialCategoriesController {
   @ApiOperation({
     summary: 'List available special categories and current claims',
     description:
-      'Returns active categories (with bonus marks) and the applicant’s claims. ' +
-      'Eligible CLAIMED/VERIFIED claims add extra marks during merit generation.',
+      'Returns active categories linked to the applicant’s selected programme offerings, plus current claims. ' +
+      'Eligible CLAIMED/VERIFIED claims add bonus marks on merit lists for offerings that enable that category.',
   })
   @ApiWrappedOkResponse(ApplicantSpecialCategoriesResponseDto)
   get(

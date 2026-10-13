@@ -44,6 +44,7 @@ export * from './document-verification-audit.entity.js';
 export * from './application-status-audit.entity.js';
 export * from './academic-level-requirement.entity.js';
 export * from './special-category.entity.js';
+export * from './offering-special-category.entity.js';
 export * from './application-special-category-claim.entity.js';
 export * from './merit-formula-template.entity.js';
 export * from './merit-formula-template-component.entity.js';

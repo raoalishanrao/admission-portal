@@ -440,6 +440,7 @@ export class SelectionOffersService {
         await this.specialCategories.getEligibleBonusesForApplicants(
           ctx.tenantId,
           appIds,
+          offeringId,
         );
 
       type ScoredCandidate = {

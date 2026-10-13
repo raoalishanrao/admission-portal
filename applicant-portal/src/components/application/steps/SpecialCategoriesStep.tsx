@@ -44,10 +44,19 @@ export function SpecialCategoriesStep({ applicantId, onSaved, onBack }: Props) {
       try {
         const data = await getSpecialCategories(applicantId)
         if (cancelled) return
-        setAvailable(data.available ?? [])
+        const availableRows = data.available ?? []
+        setAvailable(availableRows)
         setTotalBonusMarks(data.totalBonusMarks ?? 0)
         const claims = data.claims ?? []
-        setSelectedIds(new Set(claims.map(c => c.specialCategoryId)))
+        const availableIdSet = new Set(availableRows.map(c => c.id))
+        // Only pre-select categories still offered for the applicant's programmes.
+        setSelectedIds(
+          new Set(
+            claims
+              .map(c => c.specialCategoryId)
+              .filter(id => availableIdSet.has(id)),
+          ),
+        )
         setClaimStatusByCategoryId(
           Object.fromEntries(claims.map(c => [c.specialCategoryId, c.status])),
         )
@@ -85,10 +94,18 @@ export function SpecialCategoriesStep({ applicantId, onSaved, onBack }: Props) {
       const data = await saveSpecialCategoryClaims(applicantId, {
         specialCategoryIds: [...selectedIds],
       })
-      setAvailable(data.available ?? [])
+      const availableRows = data.available ?? []
+      setAvailable(availableRows)
       setTotalBonusMarks(data.totalBonusMarks ?? 0)
       const claims = data.claims ?? []
-      setSelectedIds(new Set(claims.map(c => c.specialCategoryId)))
+      const availableIdSet = new Set(availableRows.map(c => c.id))
+      setSelectedIds(
+        new Set(
+          claims
+            .map(c => c.specialCategoryId)
+            .filter(id => availableIdSet.has(id)),
+        ),
+      )
       setClaimStatusByCategoryId(
         Object.fromEntries(claims.map(c => [c.specialCategoryId, c.status])),
       )
@@ -124,8 +141,9 @@ export function SpecialCategoriesStep({ applicantId, onSaved, onBack }: Props) {
       <div>
         <h2 className="text-xl font-bold text-[#071759]">Special categories</h2>
         <p className="mt-1 text-sm text-[#354a8d]">
-          Optionally claim categories that may add bonus marks to your merit
-          score. You can continue without selecting any.
+          Optionally claim categories enabled for your selected programmes.
+          Bonus marks apply only where the programme allows them. You can
+          continue without selecting any.
         </p>
       </div>
 
@@ -137,8 +155,8 @@ export function SpecialCategoriesStep({ applicantId, onSaved, onBack }: Props) {
 
       {available.length === 0 ? (
         <p className="rounded-lg border border-[#e4e9f4] bg-[#f8faff] px-4 py-3 text-sm text-[#354a8d]">
-          No special categories are currently available for this admission
-          cycle. You can continue to the next step.
+          No special categories are enabled for your selected programmes. You
+          can continue to the next step.
         </p>
       ) : (
         <ul className="space-y-3">
