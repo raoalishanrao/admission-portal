@@ -92,17 +92,22 @@ export class OfferFeesService {
   ) {}
 
   admin(ctx: RequestContext) {
-    const roles = new Set((ctx.roles ?? []).map((r) => String(r).toUpperCase()));
-    if (
-      ![
-        'ADMISSION_ADMIN',
-        'ADMISSIONS_ADMIN',
-        'ADMISSIONS_OFFICER',
-        'TENANT_ADMIN',
-        'SUPER_ADMIN',
-        'ADMIN',
-      ].some((r) => roles.has(r))
-    ) {
+    // Same allowlist as selection-offers / entry-test / application-review.
+    // Prior list omitted ADMISSION_MANAGER, which other admissions endpoints accept.
+    const allowed = new Set([
+      'ADMISSION_ADMIN',
+      'ADMISSION_MANAGER',
+      'ADMISSIONS_MANAGER',
+      'ADMISSIONS_ADMIN',
+      'ADMISSIONS_OFFICER',
+      'ADMIN',
+      'SUPER_ADMIN',
+      'TENANT_ADMIN',
+    ]);
+    const roles = (ctx.roles ?? []).map((r) =>
+      String(r).trim().toUpperCase().replace(/[-\s]+/g, '_'),
+    );
+    if (!roles.some((r) => allowed.has(r))) {
       throw new BusinessException(
         'Admissions staff role required',
         HttpStatus.FORBIDDEN,
@@ -1094,15 +1099,20 @@ export class OfferFeesService {
       where: { id: applicantId, tenantId: user.tenantId },
     });
     if (!app) throw new NotFoundException('Application not found');
-    const roles = new Set((user.roles ?? []).map((r) => String(r).toUpperCase()));
-    const isStaff = [
+    const allowed = new Set([
       'ADMISSION_ADMIN',
+      'ADMISSION_MANAGER',
+      'ADMISSIONS_MANAGER',
       'ADMISSIONS_ADMIN',
       'ADMISSIONS_OFFICER',
-      'TENANT_ADMIN',
-      'SUPER_ADMIN',
       'ADMIN',
-    ].some((r) => roles.has(r));
+      'SUPER_ADMIN',
+      'TENANT_ADMIN',
+    ]);
+    const roles = (user.roles ?? []).map((r) =>
+      String(r).trim().toUpperCase().replace(/[-\s]+/g, '_'),
+    );
+    const isStaff = roles.some((r) => allowed.has(r));
     if (!isStaff && app.iamUserId !== user.userId) {
       throw new BusinessException(
         'Not allowed to access this application',
