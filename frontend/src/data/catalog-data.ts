@@ -46,10 +46,10 @@ export const catalogData: Record<ModuleKey, CatalogRow[]> = {
     { name: 'Arts & Design', code: 'ART', detail: 'Department of arts, design and creative studies.', value: '4', status: 'Inactive' },
   ],
   Programmes: [
-    { name: 'Bachelor of Computer Science', code: 'BCS', detail: 'Computer Science', value: 'Undergraduate', status: 'Active' },
-    { name: 'Bachelor of Business Administration', code: 'BBA', detail: 'Business Administration', value: 'Undergraduate', status: 'Active' },
-    { name: 'Master of Computer Science', code: 'MCS', detail: 'Computer Science', value: 'Postgraduate', status: 'Active' },
-    { name: 'Master of Education', code: 'MED', detail: 'Education', value: 'Postgraduate', status: 'Inactive' },
+    { name: 'Bachelor of Computer Science', code: 'BCS', detail: 'Computer Science', value: 'Bachelor', status: 'Active' },
+    { name: 'Bachelor of Business Administration', code: 'BBA', detail: 'Business Administration', value: 'Bachelor', status: 'Active' },
+    { name: 'Master of Computer Science', code: 'MCS', detail: 'Computer Science', value: 'Master', status: 'Active' },
+    { name: 'Master of Education', code: 'MED', detail: 'Education', value: 'Master', status: 'Inactive' },
   ],
   'Admission criteria': [
     { name: 'Academic Qualification', code: 'AQ-01', detail: 'Minimum 60% in Intermediate', value: 'Yes', status: 'Active' },

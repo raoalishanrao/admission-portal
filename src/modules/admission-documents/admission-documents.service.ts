@@ -1,17 +1,30 @@
-import { ConflictException, ForbiddenException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'node:crypto';
 import { extname } from 'node:path';
 import { DataSource, In, Repository } from 'typeorm';
 import { BusinessException } from '../../common/exceptions/business.exception.js';
 import { AdmissionDocumentSource, AdmissionDocumentStatus } from '../../common/enums/admission-document.enum.js';
+import { DegreeLevel } from '../../common/enums/master-data.enum.js';
 import { EDITABLE_OFFERING_STATUSES } from '../../common/enums/offering-status.enum.js';
 import type { RequestContext } from '../../common/decorators/request-context.decorator.js';
 import type { AuthUser } from '../../common/decorators/current-user.decorator.js';
-import { ApplicantDocumentEntity, ApplicantDocumentFileEntity, ApplicationAcademicDocumentEntity, ApplicationEntity, ApplicationProgrammeOptionEntity, DocumentTypeEntity, DocumentVerificationAuditEntity, OfferingRequiredDocumentEntity, ProgrammeOfferingEntity } from '../../database/entities/index.js';
+import { ApplicantDocumentEntity, ApplicantDocumentFileEntity, ApplicationAcademicDocumentEntity, ApplicationEntity, ApplicationProgrammeOptionEntity, DegreeLevelRequiredDocumentEntity, DocumentTypeEntity, DocumentVerificationAuditEntity, OfferingRequiredDocumentEntity, ProgrammeEntity, ProgrammeOfferingEntity } from '../../database/entities/index.js';
 import { OBJECT_STORAGE, type ObjectStorage } from '../../integrations/storage/object-storage.interface.js';
-import { Inject } from '@nestjs/common';
-import type { CreateDocumentTypeDto, CreateOfferingRequirementsDto, LinkAcademicDocumentDto, RequestResubmissionDto, UpdateOfferingRequirementDto } from './dto/admission-document.dto.js';
+import type {
+  ApplyDegreeLevelDocumentsDto,
+  ApplyDegreeLevelDocumentsResultDto,
+  CreateDegreeLevelRequiredDocumentDto,
+  CreateDocumentTypeDto,
+  CreateOfferingRequirementsDto,
+  DegreeLevelRequiredDocumentListResponseDto,
+  DegreeLevelRequiredDocumentResponseDto,
+  LinkAcademicDocumentDto,
+  ListDegreeLevelRequiredDocumentsQueryDto,
+  RequestResubmissionDto,
+  UpdateDegreeLevelRequiredDocumentDto,
+  UpdateOfferingRequirementDto,
+} from './dto/admission-document.dto.js';
 import { ProgrammeOfferingsService } from '../programme-offerings/programme-offerings.service.js';
 
 export interface AdmissionUpload { buffer: Buffer; originalname: string; mimetype: string; size: number; }
@@ -23,12 +36,14 @@ export class AdmissionDocumentsService {
   constructor(
     @InjectRepository(DocumentTypeEntity) private readonly types: Repository<DocumentTypeEntity>,
     @InjectRepository(OfferingRequiredDocumentEntity) private readonly requirements: Repository<OfferingRequiredDocumentEntity>,
+    @InjectRepository(DegreeLevelRequiredDocumentEntity) private readonly degreeLevelRequirements: Repository<DegreeLevelRequiredDocumentEntity>,
     @InjectRepository(ApplicantDocumentEntity) private readonly documents: Repository<ApplicantDocumentEntity>,
     @InjectRepository(ApplicantDocumentFileEntity) private readonly documentFiles: Repository<ApplicantDocumentFileEntity>,
     @InjectRepository(DocumentVerificationAuditEntity) private readonly audits: Repository<DocumentVerificationAuditEntity>,
     @InjectRepository(ApplicationEntity) private readonly applications: Repository<ApplicationEntity>,
     @InjectRepository(ApplicationProgrammeOptionEntity) private readonly options: Repository<ApplicationProgrammeOptionEntity>,
     @InjectRepository(ProgrammeOfferingEntity) private readonly offerings: Repository<ProgrammeOfferingEntity>,
+    @InjectRepository(ProgrammeEntity) private readonly programmes: Repository<ProgrammeEntity>,
     @InjectRepository(ApplicationAcademicDocumentEntity) private readonly academicDocs: Repository<ApplicationAcademicDocumentEntity>,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     private readonly dataSource: DataSource,
@@ -68,12 +83,341 @@ export class AdmissionDocumentsService {
     const items: Array<Record<string, unknown>> = [];
     await this.dataSource.transaction(async manager => {
       for (const offeringId of dto.offeringIds) for (const item of dto.requirements) {
-        const saved = await manager.getRepository(OfferingRequiredDocumentEntity).save(manager.getRepository(OfferingRequiredDocumentEntity).create({ tenantId: user.tenantId, programmeOfferingId: offeringId, documentTypeId: item.documentTypeId, mandatory: item.mandatory ?? true, conditionCode: item.conditionCode?.trim().toUpperCase() ?? null, sortOrder: item.sortOrder ?? 0, active: item.active ?? true, createdBy: user.userId, updatedBy: user.userId }));
+        const saved = await manager.getRepository(OfferingRequiredDocumentEntity).save(manager.getRepository(OfferingRequiredDocumentEntity).create({ tenantId: user.tenantId, programmeOfferingId: offeringId, documentTypeId: item.documentTypeId, mandatory: item.mandatory ?? true, conditionCode: item.conditionCode?.trim().toUpperCase() ?? null, sortOrder: item.sortOrder ?? 0, active: item.active ?? true, source: 'MANUAL', sourceDegreeLevelRequirementId: null, createdBy: user.userId, updatedBy: user.userId }));
         items.push({ ...saved, documentType: typeMap.get(item.documentTypeId)! });
       }
     });
     for (const offeringId of dto.offeringIds) await this.programmeOfferingsService.markConfiguredForSetup(user.tenantId, offeringId, user.userId);
     return { items };
+  }
+
+  /* ── Degree-level document templates ───────────────────────────── */
+
+  async listDegreeLevelRequirements(
+    user: RequestContext,
+    query: ListDegreeLevelRequiredDocumentsQueryDto,
+  ): Promise<DegreeLevelRequiredDocumentListResponseDto> {
+    this.assertStaff(user);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 50;
+    const where: { tenantId: string; degreeLevel?: string } = {
+      tenantId: user.tenantId,
+    };
+    if (query.degreeLevel) where.degreeLevel = query.degreeLevel;
+    const [rows, total] = await this.degreeLevelRequirements.findAndCount({
+      where,
+      order: { degreeLevel: 'ASC', sortOrder: 'ASC', createdAt: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    const typeMap = new Map(
+      (
+        await this.types.findBy({
+          id: In([...new Set(rows.map((r) => r.documentTypeId))]),
+        })
+      ).map((t) => [t.id, t]),
+    );
+    return {
+      items: rows.map((row) =>
+        this.toDegreeLevelRequirementResponse(row, typeMap.get(row.documentTypeId) ?? null),
+      ),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getDegreeLevelRequirement(
+    user: RequestContext,
+    id: string,
+  ): Promise<DegreeLevelRequiredDocumentResponseDto> {
+    this.assertStaff(user);
+    const row = await this.requireDegreeLevelRequirement(user.tenantId, id);
+    const type = await this.types.findOneBy({ id: row.documentTypeId });
+    return this.toDegreeLevelRequirementResponse(row, type);
+  }
+
+  async createDegreeLevelRequirement(
+    user: RequestContext,
+    dto: CreateDegreeLevelRequiredDocumentDto,
+  ): Promise<DegreeLevelRequiredDocumentResponseDto> {
+    this.assertStaff(user);
+    const type = await this.types.findOneBy({
+      id: dto.documentTypeId,
+      active: true,
+    });
+    if (!type) throw new NotFoundException('Active document type not found');
+    const existing = await this.degreeLevelRequirements.findOne({
+      where: {
+        tenantId: user.tenantId,
+        degreeLevel: dto.degreeLevel,
+        documentTypeId: dto.documentTypeId,
+      },
+    });
+    if (existing) {
+      throw new ConflictException(
+        `Document type ${type.code} is already configured for ${dto.degreeLevel}`,
+      );
+    }
+    const saved = await this.degreeLevelRequirements.save(
+      this.degreeLevelRequirements.create({
+        tenantId: user.tenantId,
+        degreeLevel: dto.degreeLevel,
+        documentTypeId: dto.documentTypeId,
+        mandatory: dto.mandatory ?? true,
+        conditionCode: dto.conditionCode?.trim().toUpperCase() ?? null,
+        sortOrder: dto.sortOrder ?? 0,
+        active: dto.active ?? true,
+        createdBy: user.userId,
+        updatedBy: user.userId,
+      }),
+    );
+    return this.toDegreeLevelRequirementResponse(saved, type);
+  }
+
+  async updateDegreeLevelRequirement(
+    user: RequestContext,
+    id: string,
+    dto: UpdateDegreeLevelRequiredDocumentDto,
+  ): Promise<DegreeLevelRequiredDocumentResponseDto> {
+    this.assertStaff(user);
+    const row = await this.requireDegreeLevelRequirement(user.tenantId, id);
+    if (dto.mandatory !== undefined) row.mandatory = dto.mandatory;
+    if (dto.conditionCode !== undefined) {
+      row.conditionCode = dto.conditionCode?.trim().toUpperCase() ?? null;
+    }
+    if (dto.sortOrder !== undefined) row.sortOrder = dto.sortOrder;
+    if (dto.active !== undefined) row.active = dto.active;
+    row.updatedBy = user.userId;
+    const saved = await this.degreeLevelRequirements.save(row);
+    const type = await this.types.findOneBy({ id: saved.documentTypeId });
+    return this.toDegreeLevelRequirementResponse(saved, type);
+  }
+
+  async deleteDegreeLevelRequirement(
+    user: RequestContext,
+    id: string,
+  ): Promise<{ deleted: true; id: string }> {
+    this.assertStaff(user);
+    const row = await this.requireDegreeLevelRequirement(user.tenantId, id);
+    await this.degreeLevelRequirements.remove(row);
+    return { deleted: true, id };
+  }
+
+  /**
+   * Sync active degree-level templates onto matching programme offerings.
+   * Upserts by (offering, documentTypeId). Does not delete MANUAL offering rules.
+   */
+  async applyDegreeLevelRequirements(
+    user: RequestContext,
+    dto: ApplyDegreeLevelDocumentsDto,
+  ): Promise<ApplyDegreeLevelDocumentsResultDto[]> {
+    this.assertStaff(user);
+    if (!dto.degreeLevel && !(dto.offeringIds?.length)) {
+      throw new BadRequestException(
+        'Provide degreeLevel and/or offeringIds to apply templates',
+      );
+    }
+
+    const levels = dto.degreeLevel
+      ? [dto.degreeLevel]
+      : ([DegreeLevel.Bachelor, DegreeLevel.Master, DegreeLevel.Doctorate] as DegreeLevel[]);
+
+    const results: ApplyDegreeLevelDocumentsResultDto[] = [];
+    for (const level of levels) {
+      results.push(
+        await this.applyDegreeLevelToOfferings(user, level, dto.offeringIds),
+      );
+    }
+    return results.filter(
+      (row) =>
+        row.offeringsTouched > 0 ||
+        row.created > 0 ||
+        row.updated > 0 ||
+        dto.degreeLevel === row.degreeLevel,
+    );
+  }
+
+  /** Used when a new offering is created — copy that programme's degree templates. */
+  async applyDegreeLevelTemplatesToOffering(
+    tenantId: string,
+    offeringId: string,
+    userId: string,
+  ): Promise<void> {
+    const offering = await this.offerings.findOneBy({
+      id: offeringId,
+      tenantId,
+    });
+    if (!offering) return;
+    const programme = await this.programmes.findOneBy({
+      id: offering.programmeId,
+      tenantId,
+    });
+    if (!programme?.degreeLevel) return;
+    await this.applyDegreeLevelToOfferings(
+      { tenantId, userId },
+      programme.degreeLevel as DegreeLevel,
+      [offeringId],
+    );
+  }
+
+  private async applyDegreeLevelToOfferings(
+    user: RequestContext,
+    degreeLevel: DegreeLevel,
+    offeringIds?: string[],
+  ): Promise<ApplyDegreeLevelDocumentsResultDto> {
+    const templates = await this.degreeLevelRequirements.find({
+      where: { tenantId: user.tenantId, degreeLevel, active: true },
+      order: { sortOrder: 'ASC' },
+    });
+    if (!templates.length) {
+      return {
+        degreeLevel,
+        offeringsTouched: 0,
+        created: 0,
+        updated: 0,
+        skipped: 0,
+      };
+    }
+
+    const programmeIds = (
+      await this.programmes.find({
+        where: { tenantId: user.tenantId, degreeLevel },
+        select: { id: true },
+      })
+    ).map((p) => p.id);
+    if (!programmeIds.length) {
+      return {
+        degreeLevel,
+        offeringsTouched: 0,
+        created: 0,
+        updated: 0,
+        skipped: 0,
+      };
+    }
+
+    let offerings = await this.offerings.find({
+      where: {
+        tenantId: user.tenantId,
+        programmeId: In(programmeIds),
+        ...(offeringIds?.length ? { id: In(offeringIds) } : {}),
+      },
+    });
+    if (offeringIds?.length) {
+      offerings = offerings.filter((o) => offeringIds.includes(o.id));
+    }
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    await this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(OfferingRequiredDocumentEntity);
+      for (const offering of offerings) {
+        for (const tpl of templates) {
+          const existing = await repo.findOne({
+            where: {
+              tenantId: user.tenantId,
+              programmeOfferingId: offering.id,
+              documentTypeId: tpl.documentTypeId,
+            },
+          });
+          if (!existing) {
+            await repo.save(
+              repo.create({
+                tenantId: user.tenantId,
+                programmeOfferingId: offering.id,
+                documentTypeId: tpl.documentTypeId,
+                mandatory: tpl.mandatory,
+                conditionCode: tpl.conditionCode,
+                sortOrder: tpl.sortOrder,
+                active: tpl.active,
+                source: 'DEGREE_LEVEL',
+                sourceDegreeLevelRequirementId: tpl.id,
+                createdBy: user.userId,
+                updatedBy: user.userId,
+              }),
+            );
+            created += 1;
+            continue;
+          }
+          // Do not overwrite manually configured offering rules.
+          if (existing.source === 'MANUAL' && !existing.sourceDegreeLevelRequirementId) {
+            skipped += 1;
+            continue;
+          }
+          existing.mandatory = tpl.mandatory;
+          existing.conditionCode = tpl.conditionCode;
+          existing.sortOrder = tpl.sortOrder;
+          existing.active = tpl.active;
+          existing.source = 'DEGREE_LEVEL';
+          existing.sourceDegreeLevelRequirementId = tpl.id;
+          existing.updatedBy = user.userId;
+          await repo.save(existing);
+          updated += 1;
+        }
+      }
+    });
+
+    for (const offering of offerings) {
+      await this.programmeOfferingsService.markConfiguredForSetup(
+        user.tenantId,
+        offering.id,
+        user.userId,
+      );
+    }
+
+    return {
+      degreeLevel,
+      offeringsTouched: offerings.length,
+      created,
+      updated,
+      skipped,
+    };
+  }
+
+  private async requireDegreeLevelRequirement(
+    tenantId: string,
+    id: string,
+  ): Promise<DegreeLevelRequiredDocumentEntity> {
+    const row = await this.degreeLevelRequirements.findOneBy({ id, tenantId });
+    if (!row) {
+      throw new NotFoundException('Degree-level document requirement not found');
+    }
+    return row;
+  }
+
+  private toDegreeLevelRequirementResponse(
+    row: DegreeLevelRequiredDocumentEntity,
+    type: DocumentTypeEntity | null | undefined,
+  ): DegreeLevelRequiredDocumentResponseDto {
+    return {
+      id: row.id,
+      tenantId: row.tenantId,
+      degreeLevel: row.degreeLevel as DegreeLevel,
+      documentTypeId: row.documentTypeId,
+      mandatory: row.mandatory,
+      conditionCode: row.conditionCode,
+      sortOrder: row.sortOrder,
+      active: row.active,
+      documentType: type
+        ? {
+            id: type.id,
+            code: type.code,
+            name: type.name,
+            category: type.category,
+            description: type.description,
+            active: type.active,
+            createdAt: type.createdAt,
+            updatedAt: type.updatedAt,
+          }
+        : null,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
   }
   async updateRequirement(user: RequestContext, id: string, dto: UpdateOfferingRequirementDto) {
     this.assertStaff(user); const row = await this.requirements.findOneBy({ id, tenantId: user.tenantId }); if (!row) throw new NotFoundException('Offering document requirement not found');

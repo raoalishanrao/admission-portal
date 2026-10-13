@@ -63,12 +63,12 @@ export function programmeAccent(index: number) {
 export function degreeLevelLabel(level: string) {
   const normalized = level.toLowerCase()
   if (normalized.includes('bachelor') || normalized === 'ug' || normalized.includes('under')) {
-    return 'Undergraduate'
+    return 'Bachelor'
   }
   if (normalized.includes('master') || normalized === 'pg' || normalized.includes('post')) {
-    return 'Postgraduate'
+    return 'Master'
   }
-  if (normalized.includes('doctor')) return 'Doctorate'
+  if (normalized.includes('doctor') || normalized.includes('phd')) return 'Doctorate'
   return level
 }
 

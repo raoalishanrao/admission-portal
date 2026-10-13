@@ -487,7 +487,7 @@ export class ApplicantApplicationsService {
     return {
       applicantId,
       intakeSessionId: selection?.intakeSessionId ?? app.intakeId,
-      qualificationLevel: selection?.qualificationLevel ?? null,
+      degreeLevel: selection?.degreeLevel ?? null,
       appliedDate: selection?.appliedDate ?? null,
       stepSaved: selection?.stepSaved ?? false,
       savedAt: selection?.savedAt ?? null,
@@ -962,6 +962,24 @@ export class ApplicantApplicationsService {
       }
     }
 
+    const programmes = await this.programmesRepo.find({
+      where: {
+        id: In(offerings.map((o) => o.programmeId)),
+        tenantId: app.tenantId,
+      },
+    });
+    const programmeById = new Map(programmes.map((p) => [p.id, p]));
+    for (const offering of offerings) {
+      const programme = programmeById.get(offering.programmeId);
+      if (!programme || programme.degreeLevel !== dto.degreeLevel) {
+        throw new BusinessException(
+          `Selected offering must match degree level ${dto.degreeLevel}`,
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          'DEGREE_LEVEL_MISMATCH',
+        );
+      }
+    }
+
     // Academic / eligibility checks run on the Academic step and at submit.
     // Programme may be saved before academics (programme-first flow).
 
@@ -981,13 +999,13 @@ export class ApplicantApplicationsService {
           applicantId,
           tenantId: app.tenantId,
           intakeSessionId: app.intakeId,
-          qualificationLevel: dto.qualificationLevel,
+          degreeLevel: dto.degreeLevel,
           appliedDate: now,
           stepSaved: true,
           savedAt: now,
         });
       } else {
-        selection.qualificationLevel = dto.qualificationLevel;
+        selection.degreeLevel = dto.degreeLevel;
         selection.intakeSessionId = app.intakeId;
         selection.stepSaved = true;
         selection.savedAt = now;

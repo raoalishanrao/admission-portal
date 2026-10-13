@@ -197,7 +197,7 @@ export function ApplicationSuccessPage() {
                     id: '',
                     code: '',
                     name: state.programmeName,
-                    degreeLevel: 'Undergraduate',
+                    degreeLevel: 'Bachelor',
                     programmeGrouping: null,
                   },
                   publishedDescription: '',

@@ -50,7 +50,7 @@ import {
   MARITAL_STATUS_OPTIONS,
   REFERRAL_OPTIONS,
   academicRecordTitle,
-  qualificationLevelLabel,
+  degreeLevelOptionLabel,
 } from '@/lib/application-steps'
 import type {
   AcademicRecordResponse,
@@ -58,13 +58,13 @@ import type {
   ApplicantOffering,
   ApplicationAddressResponse,
   ApplicationContactResponse,
+  DegreeLevel,
   DocumentCompleteness,
   OfferingDeclarationText,
   OnlinePayment,
   PaymentEvidence,
   ProcessingFeeStatusResponse,
   ProfileStepResponse,
-  QualificationLevel,
 } from '@/lib/api/types'
 
 function optionLabel(
@@ -177,7 +177,7 @@ export function SubmittedApplicationPage() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [level, setLevel] = useState<QualificationLevel | null>(null)
+  const [level, setLevel] = useState<DegreeLevel | null>(null)
   const [offerings, setOfferings] = useState<ApplicantOffering[]>([])
   const [records, setRecords] = useState<AcademicRecordResponse[]>([])
   const [profile, setProfile] = useState<ProfileStepResponse | null>(null)
@@ -263,7 +263,7 @@ export function SubmittedApplicationPage() {
         getApplicantOfferView().catch(() => null),
       ])
 
-      setLevel(programme.qualificationLevel)
+      setLevel(programme.degreeLevel)
       setRecords(academic.records ?? [])
       setProfile(profileData)
       setAddresses(
@@ -795,9 +795,9 @@ export function SubmittedApplicationPage() {
             >
               {level ? (
                 <p className="mb-3 text-sm text-[#6374ab]">
-                  Qualification level:{' '}
+                  Degree level:{' '}
                   <span className="font-semibold text-[#071759]">
-                    {qualificationLevelLabel(level)}
+                    {degreeLevelOptionLabel(level)}
                   </span>
                 </p>
               ) : null}

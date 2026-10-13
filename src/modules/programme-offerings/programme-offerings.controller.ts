@@ -28,6 +28,7 @@ import {
 } from '../../common/decorators/request-context.decorator.js';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 import { ParseUuidPipe } from '../../common/pipes/parse-uuid.pipe.js';
+import { AdmissionDocumentsService } from '../admission-documents/admission-documents.service.js';
 import {
   CreateOfferingDto,
   ListOfferingsQueryDto,
@@ -51,6 +52,7 @@ import { ProgrammeOfferingsService } from './programme-offerings.service.js';
 export class ProgrammeOfferingsController {
   constructor(
     private readonly programmeOfferingsService: ProgrammeOfferingsService,
+    private readonly admissionDocuments: AdmissionDocumentsService,
   ) {}
 
   @Post('intakes/:intakeId/offerings')
@@ -58,7 +60,8 @@ export class ProgrammeOfferingsController {
   @ApiOperation({
     summary: 'Associate a programme offering with an intake',
     description:
-      'Links an ACTIVE programme to an editable intake. Offering is created in DRAFT status.',
+      'Links an ACTIVE programme to an editable intake. Offering is created in DRAFT status. ' +
+      'Active degree-level document templates for the programme degree are applied automatically.',
   })
   @ApiParam({
     name: 'intakeId',
@@ -66,12 +69,22 @@ export class ProgrammeOfferingsController {
     example: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
   })
   @ApiWrappedCreatedResponse(OfferingResponseDto, 'Offering created')
-  createForIntake(
+  async createForIntake(
     @ReqContext() ctx: RequestContext,
     @Param('intakeId', new ParseUuidPipe('intakeId')) intakeId: string,
     @Body() dto: CreateOfferingDto,
   ): Promise<OfferingResponseDto> {
-    return this.programmeOfferingsService.createForIntake(ctx, intakeId, dto);
+    const offering = await this.programmeOfferingsService.createForIntake(
+      ctx,
+      intakeId,
+      dto,
+    );
+    await this.admissionDocuments.applyDegreeLevelTemplatesToOffering(
+      ctx.tenantId,
+      offering.id,
+      ctx.userId,
+    );
+    return offering;
   }
 
   @Get('intakes/:intakeId/offerings')

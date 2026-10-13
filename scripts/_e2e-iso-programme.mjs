@@ -79,7 +79,7 @@ console.log('acad', acad.status, acad.j.message || 'ok');
 const prog = await api('POST', `/applicants/applications/${id}/programme`, {
   token,
   body: {
-    qualificationLevel: 'UNDERGRADUATE',
+    degreeLevel: 'Bachelor',
     options: [
       {
         programmeOfferingId: '93f125b4-33dd-4b98-9b07-972f38b8790c',

@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 import type { RequestContext } from '../../common/decorators/request-context.decorator.js';
 import { MeritFormulasService } from '../merit-formulas/merit-formulas.service.js';
 import { OfferFeesService } from '../offer-fees/offer-fees.service.js';
+import { SpecialCategoriesService } from '../special-categories/special-categories.service.js';
 
 type WorkbookRow = Record<string, unknown>;
 
@@ -40,6 +41,7 @@ export class SelectionOffersService {
     private readonly meritFormulas: MeritFormulasService,
     private readonly config: ConfigService,
     private readonly offerFees: OfferFeesService,
+    private readonly specialCategories: SpecialCategoriesService,
   ) {}
 
   private maxProgrammePreferences(): number {
@@ -434,6 +436,12 @@ export class SelectionOffersService {
         academicsByApp.set(row.applicant_id, listForApp);
       }
 
+      const bonusesByApp =
+        await this.specialCategories.getEligibleBonusesForApplicants(
+          ctx.tenantId,
+          appIds,
+        );
+
       type ScoredCandidate = {
         result_id: string;
         application_record_id: string;
@@ -462,7 +470,47 @@ export class SelectionOffersService {
             academicsByApp.get(c.application_record_id) ?? [],
             Number(c.percentage),
           );
-          return { ...c, ...score };
+          const bonuses = bonusesByApp.get(c.application_record_id) ?? [];
+          const specialCategoryBonus =
+            Math.round(
+              bonuses.reduce((sum, b) => sum + Number(b.bonusMarks || 0), 0) *
+                10000,
+            ) / 10000;
+          const meritScore =
+            Math.round((score.meritScore + specialCategoryBonus) * 10000) /
+            10000;
+          const breakdown = [
+            ...score.breakdown,
+            ...bonuses.map((b) => ({
+              sourceType: `SPECIAL_CATEGORY:${b.code}`,
+              weight: 0,
+              rawPercentage: null,
+              contribution: Number(b.bonusMarks),
+              missing: false,
+              categoryCode: b.code,
+              categoryName: b.name,
+              claimStatus: b.claimStatus,
+              bonusMarks: Number(b.bonusMarks),
+            })),
+          ];
+          return {
+            ...c,
+            meritScore,
+            incomplete: score.incomplete,
+            breakdown: {
+              components: score.breakdown,
+              specialCategories: bonuses.map((b) => ({
+                code: b.code,
+                name: b.name,
+                bonusMarks: Number(b.bonusMarks),
+                claimStatus: b.claimStatus,
+              })),
+              baseMeritScore: score.meritScore,
+              specialCategoryBonus,
+              meritScore,
+              items: breakdown,
+            },
+          };
         },
       );
 

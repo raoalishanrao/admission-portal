@@ -1,4 +1,4 @@
-import type { ApplicationStepId, QualificationLevel } from '@/lib/api/types'
+import type { ApplicationStepId, DegreeLevel } from '@/lib/api/types'
 
 export const APPLICATION_STEPS: Array<{
   id: ApplicationStepId
@@ -74,9 +74,11 @@ export const APPLICATION_STEP_ORDER: ApplicationStepId[] = APPLICATION_STEPS.map
   step => step.id,
 )
 
-export function qualificationLevelFromDegree(degreeLevel: string): QualificationLevel {
+export const DEGREE_LEVELS: DegreeLevel[] = ['Bachelor', 'Master', 'Doctorate']
+
+export function normalizeDegreeLevel(degreeLevel: string): DegreeLevel {
   const normalized = degreeLevel.toLowerCase()
-  if (normalized.includes('phd') || normalized.includes('doctor')) return 'PHD'
+  if (normalized.includes('phd') || normalized.includes('doctor')) return 'Doctorate'
   if (
     normalized.includes('master') ||
     normalized.includes('post') ||
@@ -84,15 +86,15 @@ export function qualificationLevelFromDegree(degreeLevel: string): Qualification
     normalized.includes('ms') ||
     normalized.includes('mphil')
   ) {
-    return 'POSTGRADUATE'
+    return 'Master'
   }
-  return 'UNDERGRADUATE'
+  return 'Bachelor'
 }
 
-export function qualificationLevelLabel(level: QualificationLevel) {
-  if (level === 'UNDERGRADUATE') return 'Undergraduate'
-  if (level === 'POSTGRADUATE') return 'Postgraduate'
-  return 'PhD'
+export function degreeLevelOptionLabel(level: DegreeLevel) {
+  if (level === 'Bachelor') return 'Bachelor'
+  if (level === 'Master') return 'Master'
+  return 'Doctorate'
 }
 
 export function calcPercentage(obtained: string, total: string) {

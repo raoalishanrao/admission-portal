@@ -24,6 +24,8 @@ import { ApplicationReviewModule } from './application-review/application-review
 import { EntryTestModule } from './entry-test/entry-test.module.js';
 import { MeritFormulasModule } from './merit-formulas/merit-formulas.module.js';
 import { SelectionOffersModule } from './selection-offers/selection-offers.module.js';
+import { AdmissionsLookupsModule } from './admissions-lookups/admissions-lookups.module.js';
+import { SpecialCategoriesModule } from './special-categories/special-categories.module.js';
 
 /**
  * ADM-F000 domain aggregate — Intake & Offering Management.
@@ -31,6 +33,8 @@ import { SelectionOffersModule } from './selection-offers/selection-offers.modul
  */
 @Module({
   imports: [
+    AdmissionsLookupsModule,
+    SpecialCategoriesModule,
     DepartmentsModule,
     ProgrammesModule,
     CriteriaTypesModule,
@@ -58,6 +62,8 @@ import { SelectionOffersModule } from './selection-offers/selection-offers.modul
     SelectionOffersModule,
   ],
   exports: [
+    AdmissionsLookupsModule,
+    SpecialCategoriesModule,
     DepartmentsModule,
     ProgrammesModule,
     CriteriaTypesModule,

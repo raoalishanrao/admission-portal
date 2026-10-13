@@ -131,7 +131,7 @@ export type ApplicantOwnedApplication = {
   updatedAt: string
 }
 
-export type QualificationLevel = 'UNDERGRADUATE' | 'POSTGRADUATE' | 'PHD'
+export type DegreeLevel = 'Bachelor' | 'Master' | 'Doctorate'
 
 export type ProgrammeOptionInput = {
   programmeOfferingId: string
@@ -147,7 +147,7 @@ export type ProgrammeOptionResponse = {
 export type ProgrammeStepResponse = {
   applicantId: string
   intakeSessionId: string
-  qualificationLevel: QualificationLevel | null
+  degreeLevel: DegreeLevel | null
   appliedDate: string | null
   stepSaved: boolean
   savedAt: string | null
@@ -157,7 +157,7 @@ export type ProgrammeStepResponse = {
 }
 
 export type SaveProgrammeRequest = {
-  qualificationLevel: QualificationLevel
+  degreeLevel: DegreeLevel
   options: ProgrammeOptionInput[]
 }
 

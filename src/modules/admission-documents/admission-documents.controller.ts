@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiExtraModels, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { ApiStandardErrorResponses, ApiTenantHeaders, ApiWrappedCreatedArrayResponse, ApiWrappedCreatedResponse, ApiWrappedOkArrayResponse, ApiWrappedOkResponse, ApiWrappedRawArrayResponse } from '../../common/decorators/api-docs.decorator.js';
@@ -6,7 +6,30 @@ import { CurrentUser, type AuthUser } from '../../common/decorators/current-user
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 import { ParseUuidPipe } from '../../common/pipes/parse-uuid.pipe.js';
 import { ReqContext, type RequestContext } from '../../common/decorators/request-context.decorator.js';
-import { AdmissionDocumentDto, ApplicantRequirementResponseDto, ApplicantRequirementStatusDto, CreateDocumentTypeDto, CreateOfferingRequirementDto, CreateOfferingRequirementsDto, DocumentAuditResponseDto, DocumentCompletenessDto, DocumentTypeResponseDto, LinkedDocumentRequirementDto, LinkAcademicDocumentDto, OfferingRequirementBatchResponseDto, OfferingRequirementResponseDto, RequestResubmissionDto, UpdateOfferingRequirementDto } from './dto/admission-document.dto.js';
+import {
+  AdmissionDocumentDto,
+  ApplicantRequirementResponseDto,
+  ApplicantRequirementStatusDto,
+  ApplyDegreeLevelDocumentsDto,
+  ApplyDegreeLevelDocumentsResultDto,
+  CreateDegreeLevelRequiredDocumentDto,
+  CreateDocumentTypeDto,
+  CreateOfferingRequirementDto,
+  CreateOfferingRequirementsDto,
+  DegreeLevelRequiredDocumentListResponseDto,
+  DegreeLevelRequiredDocumentResponseDto,
+  DocumentAuditResponseDto,
+  DocumentCompletenessDto,
+  DocumentTypeResponseDto,
+  LinkedDocumentRequirementDto,
+  LinkAcademicDocumentDto,
+  ListDegreeLevelRequiredDocumentsQueryDto,
+  OfferingRequirementBatchResponseDto,
+  OfferingRequirementResponseDto,
+  RequestResubmissionDto,
+  UpdateDegreeLevelRequiredDocumentDto,
+  UpdateOfferingRequirementDto,
+} from './dto/admission-document.dto.js';
 import { AdmissionDocumentsService, type AdmissionUpload } from './admission-documents.service.js';
 
 class DocumentTypeUpdateDto extends CreateDocumentTypeDto {}
@@ -83,7 +106,25 @@ export class ApplicantDocumentsController {
 @ApiBearerAuth('bearer')
 @ApiTenantHeaders()
 @ApiStandardErrorResponses()
-@ApiExtraModels(ApiErrorResponseDto, AdmissionDocumentDto, DocumentTypeResponseDto, OfferingRequirementResponseDto, OfferingRequirementBatchResponseDto, DocumentAuditResponseDto, CreateDocumentTypeDto, CreateOfferingRequirementDto, CreateOfferingRequirementsDto, UpdateOfferingRequirementDto, RequestResubmissionDto)
+@ApiExtraModels(
+  ApiErrorResponseDto,
+  AdmissionDocumentDto,
+  DocumentTypeResponseDto,
+  OfferingRequirementResponseDto,
+  OfferingRequirementBatchResponseDto,
+  DocumentAuditResponseDto,
+  CreateDocumentTypeDto,
+  CreateOfferingRequirementDto,
+  CreateOfferingRequirementsDto,
+  UpdateOfferingRequirementDto,
+  RequestResubmissionDto,
+  CreateDegreeLevelRequiredDocumentDto,
+  UpdateDegreeLevelRequiredDocumentDto,
+  DegreeLevelRequiredDocumentResponseDto,
+  DegreeLevelRequiredDocumentListResponseDto,
+  ApplyDegreeLevelDocumentsDto,
+  ApplyDegreeLevelDocumentsResultDto,
+)
 @Controller('admissions')
 export class AdmissionDocumentsAdminController {
   constructor(private readonly service: AdmissionDocumentsService) {}
@@ -94,6 +135,81 @@ export class AdmissionDocumentsAdminController {
   createType(@ReqContext() user: RequestContext, @Body() dto: CreateDocumentTypeDto) { return this.service.createType(user, dto); }
   @Put('document-types/:documentTypeId') @ApiParam({ name: 'documentTypeId', format: 'uuid' }) @ApiOperation({ summary: 'Update a document type' }) @ApiWrappedOkResponse(DocumentTypeResponseDto)
   updateType(@ReqContext() user: RequestContext, @Param('documentTypeId', new ParseUuidPipe('documentTypeId')) id: string, @Body() dto: DocumentTypeUpdateDto) { return this.service.updateType(user, id, dto); }
+
+  @Get('degree-level-required-documents')
+  @ApiOperation({
+    summary: 'List degree-level document templates',
+    description:
+      'Templates by Bachelor/Master/Doctorate. Use POST .../apply to sync onto programme offerings.',
+  })
+  @ApiWrappedOkArrayResponse(DegreeLevelRequiredDocumentResponseDto, 'Degree-level document templates')
+  listDegreeLevelRequirements(
+    @ReqContext() user: RequestContext,
+    @Query() query: ListDegreeLevelRequiredDocumentsQueryDto,
+  ) {
+    return this.service.listDegreeLevelRequirements(user, query);
+  }
+
+  @Post('degree-level-required-documents')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a degree-level document template' })
+  @ApiWrappedCreatedResponse(DegreeLevelRequiredDocumentResponseDto, 'Degree-level template created')
+  createDegreeLevelRequirement(
+    @ReqContext() user: RequestContext,
+    @Body() dto: CreateDegreeLevelRequiredDocumentDto,
+  ) {
+    return this.service.createDegreeLevelRequirement(user, dto);
+  }
+
+  @Post('degree-level-required-documents/apply')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Apply degree-level document templates to offerings',
+    description:
+      'Upserts offering_required_documents for offerings whose programme degree_level matches. ' +
+      'Does not overwrite MANUAL offering-only rules. Call after changing templates, or for backfill.',
+  })
+  @ApiBody({ type: ApplyDegreeLevelDocumentsDto })
+  @ApiWrappedOkArrayResponse(ApplyDegreeLevelDocumentsResultDto, 'Apply results')
+  applyDegreeLevelRequirements(
+    @ReqContext() user: RequestContext,
+    @Body() dto: ApplyDegreeLevelDocumentsDto,
+  ) {
+    return this.service.applyDegreeLevelRequirements(user, dto);
+  }
+
+  @Get('degree-level-required-documents/:requirementId')
+  @ApiParam({ name: 'requirementId', format: 'uuid' })
+  @ApiOperation({ summary: 'Get a degree-level document template' })
+  @ApiWrappedOkResponse(DegreeLevelRequiredDocumentResponseDto)
+  getDegreeLevelRequirement(
+    @ReqContext() user: RequestContext,
+    @Param('requirementId', new ParseUuidPipe('requirementId')) id: string,
+  ) {
+    return this.service.getDegreeLevelRequirement(user, id);
+  }
+
+  @Put('degree-level-required-documents/:requirementId')
+  @ApiParam({ name: 'requirementId', format: 'uuid' })
+  @ApiOperation({ summary: 'Update a degree-level document template' })
+  @ApiWrappedOkResponse(DegreeLevelRequiredDocumentResponseDto)
+  updateDegreeLevelRequirement(
+    @ReqContext() user: RequestContext,
+    @Param('requirementId', new ParseUuidPipe('requirementId')) id: string,
+    @Body() dto: UpdateDegreeLevelRequiredDocumentDto,
+  ) {
+    return this.service.updateDegreeLevelRequirement(user, id, dto);
+  }
+
+  @Delete('degree-level-required-documents/:requirementId')
+  @ApiParam({ name: 'requirementId', format: 'uuid' })
+  @ApiOperation({ summary: 'Delete a degree-level document template' })
+  deleteDegreeLevelRequirement(
+    @ReqContext() user: RequestContext,
+    @Param('requirementId', new ParseUuidPipe('requirementId')) id: string,
+  ) {
+    return this.service.deleteDegreeLevelRequirement(user, id);
+  }
 
   @Get('offerings/:offeringId/required-documents') @ApiParam({ name: 'offeringId', format: 'uuid' }) @ApiOperation({ summary: 'List document requirements configured for an offering' }) @ApiWrappedOkArrayResponse(OfferingRequirementResponseDto)
   listRequirements(@ReqContext() user: RequestContext, @Param('offeringId', new ParseUuidPipe('offeringId')) id: string) { return this.service.listRequirements(user, id); }

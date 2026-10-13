@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { DegreeLevel } from '../../../common/enums/master-data.enum.js';
+import { PaginationMetaDto } from '../../../common/dto/api-response.dto.js';
 
 export class CreateDocumentTypeDto {
   @ApiProperty({ example: 'NOC' }) @IsString() @MaxLength(60) code!: string;
@@ -96,7 +98,140 @@ export class OfferingRequirementResponseDto {
   @ApiPropertyOptional({ nullable: true }) conditionCode!: string | null;
   @ApiProperty() sortOrder!: number;
   @ApiProperty() active!: boolean;
+  @ApiPropertyOptional({ enum: ['MANUAL', 'DEGREE_LEVEL'], default: 'MANUAL' })
+  source?: string;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  sourceDegreeLevelRequirementId?: string | null;
   @ApiProperty({ type: DocumentTypeResponseDto }) documentType!: DocumentTypeResponseDto;
+}
+
+export class CreateDegreeLevelRequiredDocumentDto {
+  @ApiProperty({ enum: DegreeLevel, example: DegreeLevel.Bachelor })
+  @IsEnum(DegreeLevel)
+  degreeLevel!: DegreeLevel;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  documentTypeId!: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  mandatory?: boolean;
+
+  @ApiPropertyOptional({ example: 'TRANSFER_CASE', nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  conditionCode?: string | null;
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+}
+
+export class UpdateDegreeLevelRequiredDocumentDto {
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  mandatory?: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  conditionCode?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+}
+
+export class ListDegreeLevelRequiredDocumentsQueryDto {
+  @ApiPropertyOptional({ enum: DegreeLevel })
+  @IsOptional()
+  @IsEnum(DegreeLevel)
+  degreeLevel?: DegreeLevel;
+
+  @ApiPropertyOptional({ type: Number, example: 1, minimum: 1, default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @ApiPropertyOptional({ type: Number, example: 50, minimum: 1, default: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit = 50;
+}
+
+export class DegreeLevelRequiredDocumentResponseDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty({ enum: DegreeLevel }) degreeLevel!: DegreeLevel;
+  @ApiProperty({ format: 'uuid' }) documentTypeId!: string;
+  @ApiProperty() mandatory!: boolean;
+  @ApiPropertyOptional({ nullable: true }) conditionCode!: string | null;
+  @ApiProperty() sortOrder!: number;
+  @ApiProperty() active!: boolean;
+  @ApiPropertyOptional({ type: DocumentTypeResponseDto, nullable: true })
+  documentType!: DocumentTypeResponseDto | null;
+  @ApiProperty() createdAt!: string;
+  @ApiProperty() updatedAt!: string;
+}
+
+export class DegreeLevelRequiredDocumentListResponseDto {
+  @ApiProperty({ type: [DegreeLevelRequiredDocumentResponseDto] })
+  items!: DegreeLevelRequiredDocumentResponseDto[];
+
+  @ApiProperty({ type: PaginationMetaDto })
+  meta!: PaginationMetaDto;
+}
+
+export class ApplyDegreeLevelDocumentsDto {
+  @ApiPropertyOptional({
+    enum: DegreeLevel,
+    description: 'Apply active templates for this degree level to all matching offerings',
+  })
+  @IsOptional()
+  @IsEnum(DegreeLevel)
+  degreeLevel?: DegreeLevel;
+
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    description: 'Optional: limit apply to these offerings (still filtered by programme degree level)',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  offeringIds?: string[];
+}
+
+export class ApplyDegreeLevelDocumentsResultDto {
+  @ApiProperty({ enum: DegreeLevel }) degreeLevel!: DegreeLevel;
+  @ApiProperty() offeringsTouched!: number;
+  @ApiProperty() created!: number;
+  @ApiProperty() updated!: number;
+  @ApiProperty() skipped!: number;
 }
 export class OfferingRequirementBatchResponseDto {
   @ApiProperty({ type: [OfferingRequirementResponseDto] }) items!: OfferingRequirementResponseDto[];

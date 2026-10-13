@@ -281,7 +281,7 @@ export function CreateProgrammeDrawer({
             options={[...programmeLevels]}
             placeholder="Select level"
             error={showError('level')}
-            helperText={!showError('level') ? 'Undergraduate, Postgraduate, or Doctorate' : undefined}
+            helperText={!showError('level') ? 'Bachelor, Master, or Doctorate' : undefined}
           />
 
           <div className="space-y-1.5">

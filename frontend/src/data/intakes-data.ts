@@ -92,13 +92,13 @@ export const intakeFeesCatalog: IntakeFeeCatalogItem[] = [
 ]
 
 export const intakeProgrammeOptions = [
-  { name: 'Bachelor of Computer Science', code: 'BCS', level: 'Undergraduate', department: 'Computer Science' },
-  { name: 'Master of Computer Science', code: 'MCS', level: 'Postgraduate', department: 'Computer Science' },
-  { name: 'Bachelor of Business Administration', code: 'BBA', level: 'Undergraduate', department: 'Business Administration' },
-  { name: 'Master of Business Administration', code: 'MBA', level: 'Postgraduate', department: 'Business Administration' },
-  { name: 'Bachelor of Education', code: 'BED', level: 'Undergraduate', department: 'Education' },
+  { name: 'Bachelor of Computer Science', code: 'BCS', level: 'Bachelor', department: 'Computer Science' },
+  { name: 'Master of Computer Science', code: 'MCS', level: 'Master', department: 'Computer Science' },
+  { name: 'Bachelor of Business Administration', code: 'BBA', level: 'Bachelor', department: 'Business Administration' },
+  { name: 'Master of Business Administration', code: 'MBA', level: 'Master', department: 'Business Administration' },
+  { name: 'Bachelor of Education', code: 'BED', level: 'Bachelor', department: 'Education' },
   { name: 'PhD in Computer Science', code: 'PHD-CS', level: 'Doctoral', department: 'Research' },
-  { name: 'Bachelor of Engineering', code: 'BENG', level: 'Undergraduate', department: 'Engineering' },
+  { name: 'Bachelor of Engineering', code: 'BENG', level: 'Bachelor', department: 'Engineering' },
 ]
 
 export function getIntakeByCode(code: string) {

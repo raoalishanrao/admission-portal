@@ -19,12 +19,13 @@ import { getProgrammeStep, saveProgrammeStep } from '@/lib/api/applications'
 import type {
   ApplicantIntake,
   ApplicantOffering,
-  QualificationLevel,
+  DegreeLevel,
 } from '@/lib/api/types'
 import { campusImageForId, degreeLevelLabel } from '@/lib/admissions-display'
 import {
-  qualificationLevelFromDegree,
-  qualificationLevelLabel,
+  DEGREE_LEVELS,
+  degreeLevelOptionLabel,
+  normalizeDegreeLevel,
 } from '@/lib/application-steps'
 
 type Props = {
@@ -35,8 +36,6 @@ type Props = {
   onPrimaryOfferingChange?: (offering: ApplicantOffering | null) => void
   onBack?: () => void
 }
-
-const LEVELS: QualificationLevel[] = ['UNDERGRADUATE', 'POSTGRADUATE', 'PHD']
 
 export function ProgrammeStep({
   applicantId,
@@ -51,7 +50,7 @@ export function ProgrammeStep({
   const [error, setError] = useState<string | null>(null)
   const [offerings, setOfferings] = useState<ApplicantOffering[]>([])
   const [alreadySaved, setAlreadySaved] = useState(false)
-  const [level, setLevel] = useState<QualificationLevel>('UNDERGRADUATE')
+  const [level, setLevel] = useState<DegreeLevel>('Bachelor')
   const [pref1, setPref1] = useState<string | null>(null)
   const [pref2, setPref2] = useState<string | null>(null)
   const [search1, setSearch1] = useState('')
@@ -73,7 +72,7 @@ export function ProgrammeStep({
 
         if (existing?.programmeStepSaved && existing.options.length > 0) {
           setAlreadySaved(true)
-          if (existing.qualificationLevel) setLevel(existing.qualificationLevel)
+          if (existing.degreeLevel) setLevel(existing.degreeLevel)
           const sorted = [...existing.options].sort((a, b) => a.preferenceOrder - b.preferenceOrder)
           setPref1(sorted[0]?.programmeOfferingId ?? null)
           setPref2(sorted[1]?.programmeOfferingId ?? null)
@@ -82,7 +81,7 @@ export function ProgrammeStep({
           const match = programmes.items.find(item => item.id === preferredOfferingId)
           if (match) {
             setPref1(match.id)
-            setLevel(qualificationLevelFromDegree(match.programme.degreeLevel))
+            setLevel(normalizeDegreeLevel(match.programme.degreeLevel))
             setEditingPref(null)
           } else {
             setEditingPref(1)
@@ -107,7 +106,7 @@ export function ProgrammeStep({
   const byLevel = useMemo(
     () =>
       offerings.filter(
-        item => qualificationLevelFromDegree(item.programme.degreeLevel) === level,
+        item => normalizeDegreeLevel(item.programme.degreeLevel) === level,
       ),
     [offerings, level],
   )
@@ -155,7 +154,7 @@ export function ProgrammeStep({
         { programmeOfferingId: pref1, preferenceOrder: 1 },
         ...(pref2 ? [{ programmeOfferingId: pref2, preferenceOrder: 2 }] : []),
       ]
-      await saveProgrammeStep(applicantId, { qualificationLevel: level, options }, alreadySaved)
+      await saveProgrammeStep(applicantId, { degreeLevel: level, options }, alreadySaved)
       setAlreadySaved(true)
       setEditingPref(null)
       onSaved(selected1)
@@ -192,12 +191,12 @@ export function ProgrammeStep({
 
       <div>
         <label className="mb-1.5 block text-sm font-semibold text-[#334155]">
-          Qualification Level <span className="text-red-500">*</span>
+          Degree Level <span className="text-red-500">*</span>
         </label>
         <select
           value={level}
           onChange={e => {
-            setLevel(e.target.value as QualificationLevel)
+            setLevel(e.target.value as DegreeLevel)
             setPref1(null)
             setPref2(null)
             setEditingPref(1)
@@ -206,9 +205,9 @@ export function ProgrammeStep({
           }}
           className="h-11 w-full rounded-lg border border-[#dce5f6] bg-white px-3 text-sm text-[#071759]"
         >
-          {LEVELS.map(item => (
+          {DEGREE_LEVELS.map(item => (
             <option key={item} value={item}>
-              {qualificationLevelLabel(item)}
+              {degreeLevelOptionLabel(item)}
             </option>
           ))}
         </select>

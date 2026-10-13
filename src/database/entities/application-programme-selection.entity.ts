@@ -8,7 +8,7 @@ import {
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { QualificationLevel } from '../../common/enums/application-completion.enum.js';
+import { DegreeLevel } from '../../common/enums/master-data.enum.js';
 import { ApplicationEntity } from './application.entity.js';
 import { IntakeEntity } from './intake.entity.js';
 
@@ -33,8 +33,9 @@ export class ApplicationProgrammeSelectionEntity {
   @JoinColumn({ name: 'intake_session_id' })
   intake!: IntakeEntity;
 
-  @Column({ type: 'varchar', length: 30, name: 'qualification_level' })
-  qualificationLevel!: QualificationLevel;
+  /** Same canonical values as programmes.degree_level. */
+  @Column({ type: 'varchar', length: 30, name: 'degree_level' })
+  degreeLevel!: DegreeLevel;
 
   @Column({
     type: 'timestamptz',

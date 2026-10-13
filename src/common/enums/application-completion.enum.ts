@@ -21,12 +21,6 @@ export enum AcademicDocumentVerificationStatus {
   REJECTED = 'REJECTED',
 }
 
-export enum QualificationLevel {
-  UNDERGRADUATE = 'UNDERGRADUATE',
-  POSTGRADUATE = 'POSTGRADUATE',
-  PHD = 'PHD',
-}
-
 export enum ApplicationAddressType {
   PRIMARY = 'PRIMARY',
   SECONDARY = 'SECONDARY',

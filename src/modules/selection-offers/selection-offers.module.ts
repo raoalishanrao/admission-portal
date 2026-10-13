@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MeritFormulasModule } from '../merit-formulas/merit-formulas.module.js';
 import { OfferFeesModule } from '../offer-fees/offer-fees.module.js';
+import { SpecialCategoriesModule } from '../special-categories/special-categories.module.js';
 import {
   ApplicantSelectionController,
   OfferEventsController,
@@ -10,7 +11,12 @@ import {
 import { SelectionOffersService } from './selection-offers.service.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([]), MeritFormulasModule, OfferFeesModule],
+  imports: [
+    TypeOrmModule.forFeature([]),
+    MeritFormulasModule,
+    OfferFeesModule,
+    SpecialCategoriesModule,
+  ],
   controllers: [
     SelectionOffersController,
     ApplicantSelectionController,

@@ -27,6 +27,16 @@ import {
   type RequestContext,
 } from '../../common/decorators/request-context.decorator.js';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
+import {
+  AcademicDegreeTypeListResponseDto,
+  DegreeLevelListResponseDto,
+  LookupOptionDto,
+} from '../../common/lookups/admissions-lookup.dto.js';
+import {
+  ACADEMIC_DEGREE_TYPE_OPTIONS,
+  DEGREE_LEVEL_OPTIONS,
+  lookupListResponse,
+} from '../../common/lookups/admissions-lookups.js';
 import { ParseUuidPipe } from '../../common/pipes/parse-uuid.pipe.js';
 import { ApplicantAdmissionsService } from './applicant-admissions.service.js';
 import {
@@ -51,6 +61,9 @@ import {
   ApplicantFeeDto,
   ApplicantDeclarationDto,
   StartApplicationResponseDto,
+  LookupOptionDto,
+  DegreeLevelListResponseDto,
+  AcademicDegreeTypeListResponseDto,
   ApiErrorResponseDto,
 )
 @ApiStandardErrorResponses()
@@ -65,6 +78,32 @@ export class ApplicantAdmissionsController {
       tenantId: resolveDefaultTenantId(),
       userId: '00000000-0000-4000-8000-000000000000',
     };
+  }
+
+  @Public()
+  @Get('degree-levels')
+  @ApiOperation({
+    summary: 'List programme degree levels',
+    description:
+      'Same canonical values as admin GET /admissions/degree-levels. ' +
+      'Use `code` (Bachelor | Master | Doctorate) when filtering/displaying programmes.',
+  })
+  @ApiWrappedOkArrayResponse(LookupOptionDto, 'Degree levels')
+  listDegreeLevels(): DegreeLevelListResponseDto {
+    return lookupListResponse(DEGREE_LEVEL_OPTIONS);
+  }
+
+  @Public()
+  @Get('academic-degree-types')
+  @ApiOperation({
+    summary: 'List academic degree type codes',
+    description:
+      'Same values as admin GET /admissions/academic-degree-types. ' +
+      'Use for academic history forms (MATRIC | FSC | BACHELOR | MASTER | DOCTORATE).',
+  })
+  @ApiWrappedOkArrayResponse(LookupOptionDto, 'Academic degree types')
+  listAcademicDegreeTypes(): AcademicDegreeTypeListResponseDto {
+    return lookupListResponse(ACADEMIC_DEGREE_TYPE_OPTIONS);
   }
 
   @Public()

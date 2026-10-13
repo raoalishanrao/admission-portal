@@ -14,9 +14,9 @@ export function toApiStatus(status: UiStatus | 'All'): ApiStatus | undefined {
 export function toUiDegreeLevel(level: DegreeLevel): string {
   switch (level) {
     case 'Bachelor':
-      return 'Undergraduate'
+      return 'Bachelor'
     case 'Master':
-      return 'Postgraduate'
+      return 'Master'
     case 'Doctorate':
       return 'Doctorate'
     default:
@@ -26,7 +26,8 @@ export function toUiDegreeLevel(level: DegreeLevel): string {
 
 export function toApiDegreeLevel(level: string): DegreeLevel {
   if (level === 'Postgraduate' || level === 'Master') return 'Master'
-  if (level === 'Doctorate') return 'Doctorate'
+  if (level === 'Doctorate' || level === 'PhD' || level === 'PHD') return 'Doctorate'
+  if (level === 'Undergraduate' || level === 'Bachelor') return 'Bachelor'
   return 'Bachelor'
 }
 

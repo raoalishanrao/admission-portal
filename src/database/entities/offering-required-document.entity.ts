@@ -11,6 +11,14 @@ export class OfferingRequiredDocumentEntity {
   @Column({ type: 'varchar', length: 60, name: 'condition_code', nullable: true }) conditionCode!: string | null;
   @Column({ type: 'int', name: 'sort_order', default: 0 }) sortOrder!: number;
   @Index() @Column({ type: 'boolean', default: true }) active!: boolean;
+  /** MANUAL = configured on offering; DEGREE_LEVEL = synced from degree template. */
+  @Column({ type: 'varchar', length: 30, default: 'MANUAL' }) source!: string;
+  @Column({
+    type: 'uuid',
+    name: 'source_degree_level_requirement_id',
+    nullable: true,
+  })
+  sourceDegreeLevelRequirementId!: string | null;
   @Column({ type: 'uuid', name: 'created_by' }) createdBy!: string;
   @Column({ type: 'uuid', name: 'updated_by' }) updatedBy!: string;
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' }) createdAt!: Date;

@@ -25,8 +25,8 @@ import {
   AcademicDocumentType,
   ApplicationAddressType,
   ApplicationContactType,
-  QualificationLevel,
 } from '../../../common/enums/application-completion.enum.js';
+import { DegreeLevel } from '../../../common/enums/master-data.enum.js';
 
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -273,9 +273,13 @@ export class ProgrammeOptionDto {
 }
 
 export class CreateProgrammeDto {
-  @ApiProperty({ enum: QualificationLevel })
-  @IsEnum(QualificationLevel)
-  qualificationLevel!: QualificationLevel;
+  @ApiProperty({
+    enum: DegreeLevel,
+    description: 'Canonical programme degree level (Bachelor | Master | Doctorate)',
+    example: DegreeLevel.Bachelor,
+  })
+  @IsEnum(DegreeLevel)
+  degreeLevel!: DegreeLevel;
 
   @ApiProperty({
     type: [ProgrammeOptionDto],
@@ -309,8 +313,8 @@ export class ProgrammeStepResponseDto {
   @ApiProperty()
   intakeSessionId!: string;
 
-  @ApiPropertyOptional({ enum: QualificationLevel, nullable: true })
-  qualificationLevel!: QualificationLevel | null;
+  @ApiPropertyOptional({ enum: DegreeLevel, nullable: true })
+  degreeLevel!: DegreeLevel | null;
 
   @ApiPropertyOptional({ nullable: true })
   appliedDate!: Date | null;

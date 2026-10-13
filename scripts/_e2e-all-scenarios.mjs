@@ -279,7 +279,7 @@ async function saveProgramme(token, applicantId) {
   return api('POST', `/applicants/applications/${applicantId}/programme`, {
     token,
     body: {
-      qualificationLevel: 'UNDERGRADUATE',
+      degreeLevel: 'Bachelor',
       options: [
         { programmeOfferingId: BSIT_OFFERING, preferenceOrder: 1 },
         { programmeOfferingId: PRO_OFFERING, preferenceOrder: 2 },

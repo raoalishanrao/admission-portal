@@ -328,7 +328,7 @@ log(
 const programme = await api('POST', `${A}/programme`, {
   token: applicantToken,
   body: {
-    qualificationLevel: 'UNDERGRADUATE',
+    degreeLevel: 'Bachelor',
     options: [
       { programmeOfferingId: BSIT_OFFERING, preferenceOrder: 1 },
       { programmeOfferingId: PRO_OFFERING, preferenceOrder: 2 },

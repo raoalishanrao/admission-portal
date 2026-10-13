@@ -216,7 +216,7 @@ export function IntakeDetailPage() {
                     onChange={event => setLevelFilter(event.target.value)}
                     className="h-10 rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm text-[#19316f] outline-none"
                   >
-                    <option value="all">Qualification Level</option>
+                    <option value="all">Degree Level</option>
                     {levels.map(level => (
                       <option key={level} value={level}>
                         {level}
@@ -431,7 +431,7 @@ function ProgrammeCard({
         <div className="flex shrink-0 flex-col justify-between gap-3 sm:w-44 sm:items-end">
           <dl className="space-y-1.5 text-xs text-[#6374ab] sm:text-right">
             <div>
-              <dt className="inline">Qualification Level: </dt>
+              <dt className="inline">Degree Level: </dt>
               <dd className="inline font-medium text-[#071759]">{level}</dd>
             </div>
             <div>
