@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
   CalendarDays,
@@ -33,6 +33,7 @@ export function IntakeCard({
   onSelect,
 }: Props) {
   const navigate = useNavigate()
+  const location = useLocation()
   const status = getIntakeWindowStatus(
     intake.applicationOpenAt,
     intake.applicationCloseAt,
@@ -140,7 +141,18 @@ export function IntakeCard({
                         <li key={offering.id}>
                           <button
                             type="button"
-                            onClick={() => navigate(`/offerings/${offering.id}`)}
+                            onClick={() => {
+                              const path =
+                                `${location.pathname}${location.search}${location.hash}` ||
+                                '/'
+                              const from =
+                                path === '/' || path === ''
+                                  ? '/#admissions'
+                                  : path
+                              navigate(`/offerings/${offering.id}`, {
+                                state: { from },
+                              })
+                            }}
                             className={cn(
                               'flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors',
                               'hover:bg-[#f8faff] dark:hover:bg-[#1a2438]',

@@ -69,13 +69,18 @@ export function IntakeDetailPage() {
     ])
       .then(([intakeData, programmes]) => {
         if (cancelled) return
+        const items = Array.isArray(programmes?.items) ? programmes.items : []
         setIntake(intakeData)
-        setOfferings(programmes.items)
-        setSelectedId(programmes.items[0]?.id ?? null)
+        setOfferings(items)
+        setSelectedId(items[0]?.id ?? null)
       })
       .catch((err: unknown) => {
         if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Unable to load admissions.')
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Unable to load this admission period. Please try again.',
+        )
         setIntake(null)
         setOfferings([])
       })
@@ -400,7 +405,11 @@ export function IntakeDetailPage() {
                     selected={offering.id === selectedId}
                     layout={viewMode}
                     onSelect={() => setSelectedId(offering.id)}
-                    onViewDetails={() => navigate(`/offerings/${offering.id}`)}
+                    onViewDetails={() =>
+                      navigate(`/offerings/${offering.id}`, {
+                        state: { from: `/intakes/${intakeId}` },
+                      })
+                    }
                   />
                 ))}
               </div>

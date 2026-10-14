@@ -48,7 +48,7 @@ export class SelectionOffersController {
   merit(@ReqContext() ctx:RequestContext,@Param('meritListId',new ParseUuidPipe('meritListId')) id:string,@Query() q:ImportRowQueryDto){return this.service.meritDetails(ctx,id,q.page,q.limit);}
   @Post('merit-lists/:meritListId/approve') @HttpCode(HttpStatus.OK) @ApiOperation({ summary: 'Approve a draft merit list' })
   approveMerit(@ReqContext() ctx:RequestContext,@Param('meritListId',new ParseUuidPipe('meritListId')) id:string){return this.service.approveMerit(ctx,id);}
-  @Post('merit-lists/:meritListId/publish') @HttpCode(HttpStatus.OK) @ApiOperation({ summary: 'Publish an approved merit list to staff; applicant selection remains hidden until allocation confirms' })
+  @Post('merit-lists/:meritListId/publish') @HttpCode(HttpStatus.OK) @ApiOperation({ summary: 'Publish an approved merit list; applicants can view their rank on Results once published' })
   publishMerit(@ReqContext() ctx:RequestContext,@Param('meritListId',new ParseUuidPipe('meritListId')) id:string){return this.service.publishMerit(ctx,id);}
 
   @Post('allocations/preview') @HttpCode(HttpStatus.CREATED) @ApiOperation({ summary: 'Preview coordinated preference and capacity allocation across an intake/session' })
@@ -81,7 +81,11 @@ export class SelectionOffersController {
 @Controller('applicant')
 export class ApplicantSelectionController {
   constructor(private readonly service:SelectionOffersService){}
-  @Get('results') @ApiOperation({summary:'View the signed-in applicant’s published test results'})
+  @Get('results') @ApiOperation({
+    summary: 'View the signed-in applicant’s published entry-test and merit-list results',
+    description:
+      'Returns entryTests (published entry-test scores) and meritLists (the applicant’s standing on the latest published merit list per programme offering).',
+  })
   results(@ReqContext() ctx:RequestContext,@CurrentUser() user:AuthUser){return this.service.applicantResults(ctx,user.userId);}
   @Get('offer') @ApiOperation({summary:'View the signed-in applicant’s published admission offer'})
   offer(@ReqContext() ctx:RequestContext,@CurrentUser() user:AuthUser){return this.service.applicantOffer(ctx,user.userId);}

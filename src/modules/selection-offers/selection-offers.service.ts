@@ -258,41 +258,95 @@ export class SelectionOffersService {
     };
   }
   async applicantResults(ctx:RequestContext,userId:string) {
-    const rows = await this.db.query(
-      `SELECT r.id,
-              r.application_reference AS "applicationReference",
-              r.test_session_id AS "testSessionId",
-              r.test_score AS "testScore",
-              r.total_marks AS "totalMarks",
-              r.percentage,
-              r.result_status AS "resultStatus",
-              r.published_at AS "publishedAt",
-              s.test_date AS "testDate",
-              s.reporting_time AS "reportingTime",
-              s.test_time AS "testTime",
-              s.room AS "room",
-              c.centre_name AS "centreName",
-              c.location AS "centreLocation",
-              CASE
-                WHEN c.centre_name IS NULL THEN NULL
-                ELSE CONCAT(c.centre_name, ', ', c.location)
-              END AS "testVenue"
-       FROM application_entry_test_results r
-       JOIN applications a ON a.id = r.application_record_id
-       LEFT JOIN test_sessions s
-         ON s.id = r.test_session_id
-        AND s.tenant_id = r.tenant_id
-       LEFT JOIN test_centres c
-         ON c.id = s.test_centre_id
-        AND c.tenant_id = s.tenant_id
-       WHERE r.tenant_id = $1
-         AND a.iam_user_id = $2
-         AND r.is_current
-         AND r.published_at IS NOT NULL
-       ORDER BY r.published_at DESC`,
-      [ctx.tenantId, userId],
-    );
-    return rows;
+    const [entryTests, meritLists] = await Promise.all([
+      this.db.query(
+        `SELECT r.id,
+                r.application_reference AS "applicationReference",
+                r.test_session_id AS "testSessionId",
+                r.test_score AS "testScore",
+                r.total_marks AS "totalMarks",
+                r.percentage,
+                r.result_status AS "resultStatus",
+                r.published_at AS "publishedAt",
+                s.test_date AS "testDate",
+                s.reporting_time AS "reportingTime",
+                s.test_time AS "testTime",
+                s.room AS "room",
+                c.centre_name AS "centreName",
+                c.location AS "centreLocation",
+                CASE
+                  WHEN c.centre_name IS NULL THEN NULL
+                  ELSE CONCAT(c.centre_name, ', ', c.location)
+                END AS "testVenue"
+         FROM application_entry_test_results r
+         JOIN applications a ON a.id = r.application_record_id
+         LEFT JOIN test_sessions s
+           ON s.id = r.test_session_id
+          AND s.tenant_id = r.tenant_id
+         LEFT JOIN test_centres c
+           ON c.id = s.test_centre_id
+          AND c.tenant_id = s.tenant_id
+         WHERE r.tenant_id = $1
+           AND a.iam_user_id = $2
+           AND r.is_current
+           AND r.published_at IS NOT NULL
+         ORDER BY r.published_at DESC`,
+        [ctx.tenantId, userId],
+      ),
+      this.db.query(
+        `SELECT mi.id,
+                mi.application_reference AS "applicationReference",
+                mi.merit_rank AS "meritRank",
+                mi.percentage,
+                mi.merit_score AS "meritScore",
+                mi.preference_order AS "preferenceOrder",
+                mi.selection_status AS "selectionStatus",
+                mi.final_selection AS "finalSelection",
+                mi.score_snapshot AS "scoreSnapshot",
+                mi.total_marks_snapshot AS "totalMarksSnapshot",
+                ml.id AS "meritListId",
+                ml.list_version AS "listVersion",
+                ml.published_at AS "publishedAt",
+                ml.programme_offering_id AS "programmeOfferingId",
+                ml.capacity_snapshot AS "capacitySnapshot",
+                p.name AS "programmeName",
+                p.code AS "programmeCode",
+                p.degree_level AS "degreeLevel",
+                i.intake_name AS "intakeName",
+                i.intake_code AS "intakeCode"
+         FROM programme_merit_list_items mi
+         JOIN programme_merit_lists ml
+           ON ml.id = mi.merit_list_id
+          AND ml.tenant_id = mi.tenant_id
+         JOIN applications a
+           ON a.id = mi.application_record_id
+          AND a.tenant_id = mi.tenant_id
+         JOIN programme_offerings po
+           ON po.id = ml.programme_offering_id
+          AND po.tenant_id = ml.tenant_id
+         JOIN programmes p
+           ON p.id = po.programme_id
+          AND p.tenant_id = po.tenant_id
+         JOIN intakes i
+           ON i.id = ml.intake_session_id
+          AND i.tenant_id = ml.tenant_id
+         WHERE mi.tenant_id = $1
+           AND a.iam_user_id = $2
+           AND ml.status = 'PUBLISHED'
+           AND ml.published_at IS NOT NULL
+           AND ml.list_version = (
+             SELECT MAX(ml2.list_version)
+             FROM programme_merit_lists ml2
+             WHERE ml2.tenant_id = ml.tenant_id
+               AND ml2.test_session_id = ml.test_session_id
+               AND ml2.programme_offering_id = ml.programme_offering_id
+               AND ml2.status = 'PUBLISHED'
+           )
+         ORDER BY ml.published_at DESC, mi.merit_rank ASC, p.name ASC`,
+        [ctx.tenantId, userId],
+      ),
+    ]);
+    return { entryTests, meritLists };
   }
   async getResult(ctx:RequestContext,id:string){this.admin(ctx);const r=await this.db.query(`SELECT * FROM application_entry_test_results WHERE tenant_id=$1 AND id=$2`,[ctx.tenantId,id]);if(!r[0])throw new NotFoundException('Result not found');return r[0];}
 

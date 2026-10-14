@@ -295,6 +295,7 @@ function ProgrammeList({
               <li key={offering.id}>
                 <Link
                   to={`/offerings/${offering.id}`}
+                  state={{ from: '/#admissions' }}
                   className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[#f8faff]"
                 >
                   <span

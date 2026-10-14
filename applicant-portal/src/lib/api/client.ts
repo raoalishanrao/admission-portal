@@ -50,24 +50,40 @@ export async function apiRequest<T>(
     requestHeaders.set('ngrok-skip-browser-warning', 'true')
   }
 
-  const response = await fetch(buildUrl(path), {
-    ...rest,
-    headers: requestHeaders,
-  })
+  const method = (rest.method ?? 'GET').toUpperCase()
+  const maxAttempts = method === 'GET' ? 2 : 1
+  let lastError: ApiError | null = null
 
-  const payload = await response.json().catch(() => null)
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetch(buildUrl(path), {
+      ...rest,
+      headers: requestHeaders,
+    })
 
-  if (!response.ok) {
+    const payload = await response.json().catch(() => null)
+
+    if (response.ok) {
+      return payload as T
+    }
+
     const error = payload as ApiErrorResponse | null
-    throw new ApiError(
+    lastError = new ApiError(
       error ? formatErrorMessage(error.message) : 'Request failed. Please try again.',
       error?.statusCode ?? response.status,
       error?.code ?? 'REQUEST_FAILED',
       payload,
     )
+
+    // Transient DB/proxy blips on public catalogue reads — retry once.
+    const retryable =
+      method === 'GET' &&
+      attempt < maxAttempts &&
+      (lastError.statusCode >= 500 || lastError.statusCode === 0)
+    if (!retryable) break
+    await new Promise(resolve => setTimeout(resolve, 350))
   }
 
-  return payload as T
+  throw lastError ?? new ApiError('Request failed. Please try again.', 500, 'REQUEST_FAILED')
 }
 
 function buildQuery(params?: Record<string, string | number | undefined>) {

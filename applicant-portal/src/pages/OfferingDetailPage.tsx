@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { ApplyOrContinueButton } from '@/components/admissions/ApplyOrContinueButton'
 import { Badge } from '@/components/ui/badge'
@@ -19,10 +19,20 @@ import type {
   ApplicantOfferingDeclaration,
 } from '@/lib/api/types'
 import { degreeLevelLabel } from '@/lib/admissions-display'
+import { formatCriterionDescription } from '@/lib/criteria-display'
+
+type LocationState = {
+  from?: string
+}
 
 export function OfferingDetailPage() {
   const { offeringId = '' } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const fromPath =
+    typeof (location.state as LocationState | null)?.from === 'string'
+      ? (location.state as LocationState).from
+      : undefined
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [offering, setOffering] = useState<ApplicantOffering | null>(null)
@@ -32,6 +42,28 @@ export function OfferingDetailPage() {
   const [declarations, setDeclarations] = useState<ApplicantOfferingDeclaration[]>(
     [],
   )
+
+  function goBack() {
+    if (fromPath) {
+      navigate(fromPath)
+      return
+    }
+    if (intake?.id) {
+      navigate(`/intakes/${intake.id}`)
+      return
+    }
+    navigate('/#admissions')
+  }
+
+  const backLabel = fromPath?.startsWith('/intakes/')
+    ? 'Back to programmes'
+    : fromPath === '/' || fromPath?.startsWith('/#')
+      ? 'Back to admissions'
+      : fromPath
+        ? 'Back'
+        : intake?.id
+          ? 'Back to programmes'
+          : 'Back to admissions'
 
   useEffect(() => {
     if (!offeringId) return
@@ -87,14 +119,11 @@ export function OfferingDetailPage() {
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
       <button
         type="button"
-        onClick={() => {
-          if (intake) navigate(`/intakes/${intake.id}`)
-          else navigate(-1)
-        }}
+        onClick={goBack}
         className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[#0c3cff] hover:underline"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to programmes
+        {backLabel}
       </button>
 
       {loading ? (
@@ -161,30 +190,33 @@ export function OfferingDetailPage() {
                 </p>
               ) : (
                 <ul className="space-y-2">
-                  {criteria.map(item => (
-                    <li
-                      key={item.id}
-                      className="rounded-lg border border-[#e4e9f4] px-4 py-3 text-sm"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium text-[#071759]">
-                          {item.criteriaName ?? 'Criterion'}
-                        </p>
-                        {item.mandatory ? (
-                          <Badge className="rounded-full bg-[#fee2e2] text-[#b91c1c]">Mandatory</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="rounded-full">
-                            Optional
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="mt-1 text-[#354a8d]">
-                        {[item.criteriaOperator, item.criteriaRequirement, item.criteriaUnit]
-                          .filter(Boolean)
-                          .join(' ')}
-                      </p>
-                    </li>
-                  ))}
+                  {criteria.map(item => {
+                    const detail = formatCriterionDescription(item)
+                    return (
+                      <li
+                        key={item.id}
+                        className="rounded-lg border border-[#e4e9f4] px-4 py-3 text-sm"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-medium text-[#071759]">
+                            {item.criteriaName ?? 'Criterion'}
+                          </p>
+                          {item.mandatory ? (
+                            <Badge className="rounded-full bg-[#fee2e2] text-[#b91c1c]">
+                              Mandatory
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="rounded-full">
+                              Optional
+                            </Badge>
+                          )}
+                        </div>
+                        {detail ? (
+                          <p className="mt-1 text-[#354a8d]">{detail}</p>
+                        ) : null}
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
             </section>

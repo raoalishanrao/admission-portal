@@ -617,6 +617,34 @@ export type ApplicantTestResult = {
   testVenue?: string | null
 }
 
+export type ApplicantMeritResult = {
+  id: string
+  applicationReference: string
+  meritRank: number
+  percentage: string | number
+  meritScore: string | number | null
+  preferenceOrder: number
+  selectionStatus: string
+  finalSelection: boolean
+  scoreSnapshot?: string | number | null
+  totalMarksSnapshot?: string | number | null
+  meritListId: string
+  listVersion: number
+  publishedAt: string
+  programmeOfferingId: string
+  capacitySnapshot: number
+  programmeName: string
+  programmeCode: string
+  degreeLevel: string
+  intakeName: string
+  intakeCode: string
+}
+
+export type ApplicantResultsPayload = {
+  entryTests: ApplicantTestResult[]
+  meritLists: ApplicantMeritResult[]
+}
+
 export type AdmissionOffer = {
   id: string
   applicationRecordId: string
