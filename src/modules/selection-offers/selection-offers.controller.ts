@@ -6,12 +6,41 @@ import { ReqContext, type RequestContext } from '../../common/decorators/request
 import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator.js';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 import { ParseUuidPipe } from '../../common/pipes/parse-uuid.pipe.js';
-import { AllocationConfirmDto, AllocationPreviewDto, ConfirmImportDto, GenerateMeritListDto, ImportRowQueryDto, OfferAuthorizationDto, OfferResponseEventDto, ResultImportResponseDto, UploadResultQueryDto } from './selection-offers.dto.js';
+import {
+  AllocationConfirmDto,
+  AllocationConfirmItemDto,
+  AllocationPreviewDto,
+  ConfirmImportDto,
+  GenerateMeritListDto,
+  ImportRowQueryDto,
+  ListMeritListsByOfferingQueryDto,
+  ListOffersByOfferingQueryDto,
+  ListPublishedResultsByOfferingQueryDto,
+  ListResultImportsQueryDto,
+  OfferAuthorizationDto,
+  OfferResponseEventDto,
+  ResultImportResponseDto,
+  UploadResultQueryDto,
+} from './selection-offers.dto.js';
 import { SelectionOffersService, type UploadedWorkbookFile } from './selection-offers.service.js';
 
 @ApiTags('Selection, Results & Admission Offers')
 @ApiBearerAuth('bearer') @ApiTenantHeaders() @ApiStandardErrorResponses()
-@ApiExtraModels(ApiErrorResponseDto, ResultImportResponseDto, UploadResultQueryDto, ImportRowQueryDto, GenerateMeritListDto, AllocationPreviewDto, AllocationConfirmDto, OfferAuthorizationDto)
+@ApiExtraModels(
+  ApiErrorResponseDto,
+  ResultImportResponseDto,
+  UploadResultQueryDto,
+  ImportRowQueryDto,
+  ListResultImportsQueryDto,
+  ListOffersByOfferingQueryDto,
+  ListMeritListsByOfferingQueryDto,
+  ListPublishedResultsByOfferingQueryDto,
+  GenerateMeritListDto,
+  AllocationPreviewDto,
+  AllocationConfirmDto,
+  AllocationConfirmItemDto,
+  OfferAuthorizationDto,
+)
 @Controller('admissions')
 export class SelectionOffersController {
   constructor(private readonly service: SelectionOffersService) {}
@@ -29,6 +58,19 @@ export class SelectionOffersController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   upload(@ReqContext() ctx: RequestContext, @Body() body: UploadResultQueryDto, @UploadedFile() file: UploadedWorkbookFile) { return this.service.upload(ctx, body.testSessionId, file); }
 
+  @Get('entry-test-results/imports')
+  @ApiOperation({
+    summary: 'List result marksheet imports',
+    description:
+      'Returns paginated result-import batches (Excel marksheet uploads). Filter by test session, intake, programme offering, or status.',
+  })
+  listImports(
+    @ReqContext() ctx: RequestContext,
+    @Query() q: ListResultImportsQueryDto,
+  ) {
+    return this.service.listResultImports(ctx, q);
+  }
+
   @Get('entry-test-results/imports/:importId') @ApiOperation({ summary: 'Get staged result import status and counts' }) @ApiWrappedOkResponse(ResultImportResponseDto)
   getImport(@ReqContext() ctx: RequestContext, @Param('importId',new ParseUuidPipe('importId')) id:string){return this.service.getImport(ctx,id);}
   @Get('entry-test-results/imports/:importId/rows') @ApiOperation({ summary: 'Get paginated result-import preview rows and validation errors' })
@@ -42,6 +84,50 @@ export class SelectionOffersController {
   @Get('entry-test-results/:resultId') @ApiOperation({ summary: 'Get a scored result by UUID (admin)' })
   getResult(@ReqContext() ctx:RequestContext,@Param('resultId',new ParseUuidPipe('resultId')) id:string){return this.service.getResult(ctx,id);}
 
+  @Get('offerings/:offeringId/offers')
+  @ApiParam({ name: 'offeringId', format: 'uuid' })
+  @ApiOperation({
+    summary: 'List admission offers for a programme offering',
+    description: 'Paginated offers linked to the given programme offering. Optional status filter.',
+  })
+  listOffersByOffering(
+    @ReqContext() ctx: RequestContext,
+    @Param('offeringId', new ParseUuidPipe('offeringId')) offeringId: string,
+    @Query() q: ListOffersByOfferingQueryDto,
+  ) {
+    return this.service.listOffersByOffering(ctx, offeringId, q);
+  }
+
+  @Get('offerings/:offeringId/merit-lists')
+  @ApiParam({ name: 'offeringId', format: 'uuid' })
+  @ApiOperation({
+    summary: 'List merit lists for a programme offering',
+    description:
+      'Paginated merit-list versions for the offering. Use latestOnly=true for the newest matching version. Candidate details remain on GET merit-lists/:meritListId.',
+  })
+  listMeritListsByOffering(
+    @ReqContext() ctx: RequestContext,
+    @Param('offeringId', new ParseUuidPipe('offeringId')) offeringId: string,
+    @Query() q: ListMeritListsByOfferingQueryDto,
+  ) {
+    return this.service.listMeritListsByOffering(ctx, offeringId, q);
+  }
+
+  @Get('offerings/:offeringId/entry-test-results')
+  @ApiParam({ name: 'offeringId', format: 'uuid' })
+  @ApiOperation({
+    summary: 'List published entry-test results for a programme offering',
+    description:
+      'Current published scores for applicants who selected this offering and whose test session includes it.',
+  })
+  listPublishedResultsByOffering(
+    @ReqContext() ctx: RequestContext,
+    @Param('offeringId', new ParseUuidPipe('offeringId')) offeringId: string,
+    @Query() q: ListPublishedResultsByOfferingQueryDto,
+  ) {
+    return this.service.listPublishedResultsByOffering(ctx, offeringId, q);
+  }
+
   @Post('merit-lists/generate') @HttpCode(HttpStatus.CREATED) @ApiOperation({ summary: 'Generate a versioned merit list for one offering' })
   generate(@ReqContext() ctx:RequestContext,@Body() dto:GenerateMeritListDto){return this.service.generateMerit(ctx,dto.testSessionId,dto.programmeOfferingId);}
   @Get('merit-lists/:meritListId') @ApiOperation({ summary: 'Get a merit-list snapshot and paginated candidates' })
@@ -53,8 +139,21 @@ export class SelectionOffersController {
 
   @Post('allocations/preview') @HttpCode(HttpStatus.CREATED) @ApiOperation({ summary: 'Preview coordinated preference and capacity allocation across an intake/session' })
   preview(@ReqContext() ctx:RequestContext,@Body() dto:AllocationPreviewDto){return this.service.previewAllocation(ctx,dto.intakeSessionId,dto.testSessionId);}
-  @Post('allocations/confirm') @HttpCode(HttpStatus.OK) @ApiOperation({ summary: 'Confirm an allocation version atomically; requires Idempotency-Key header' })
-  confirmAllocation(@ReqContext() ctx:RequestContext,@Body() dto:AllocationConfirmDto,@Headers('idempotency-key') key:string){return this.service.confirmAllocation(ctx,dto.allocationId,dto.allocationVersion,key);}
+  @Post('allocations/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Confirm one or more allocation versions atomically; requires Idempotency-Key header',
+    description:
+      'Pass allocations: [{ allocationId, allocationVersion }, ...]. All confirms run in one transaction. ' +
+      'For multiple ids, the idempotency key is applied per allocation as `{key}:{allocationId}`.',
+  })
+  confirmAllocation(
+    @ReqContext() ctx: RequestContext,
+    @Body() dto: AllocationConfirmDto,
+    @Headers('idempotency-key') key: string,
+  ) {
+    return this.service.confirmAllocation(ctx, dto.allocations, key);
+  }
   @Get('allocations/:allocationId') @ApiOperation({ summary: 'Get an allocation run and status' })
   allocation(@ReqContext() ctx:RequestContext,@Param('allocationId',new ParseUuidPipe('allocationId')) id:string){return this.service.allocation(ctx,id);}
   @Get('allocations/:allocationId/items') @ApiOperation({ summary: 'Get paginated proposed or confirmed applicant allocations' })

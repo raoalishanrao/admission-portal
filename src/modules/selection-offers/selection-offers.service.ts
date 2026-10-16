@@ -168,6 +168,341 @@ export class SelectionOffersService {
   }
 
   async getImport(ctx: RequestContext, id: string) { this.admin(ctx); const rows=await this.db.query('SELECT * FROM result_imports WHERE tenant_id=$1 AND id=$2',[ctx.tenantId,id]); if(!rows[0]) throw new NotFoundException('Result import not found'); return rows[0]; }
+
+  private async assertOffering(ctx: RequestContext, offeringId: string) {
+    const row = (
+      await this.db.query(
+        `SELECT id FROM programme_offerings WHERE tenant_id = $1 AND id = $2`,
+        [ctx.tenantId, offeringId],
+      )
+    )[0];
+    if (!row) throw new NotFoundException('Programme offering not found');
+  }
+
+  private pageMeta(page: number, limit: number, total: number) {
+    return {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 0,
+    };
+  }
+
+  async listResultImports(
+    ctx: RequestContext,
+    query: {
+      page?: number;
+      limit?: number;
+      testSessionId?: string;
+      intakeSessionId?: string;
+      programmeOfferingId?: string;
+      status?: string;
+    } = {},
+  ) {
+    this.admin(ctx);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const params: unknown[] = [ctx.tenantId];
+    const where: string[] = ['ri.tenant_id = $1'];
+
+    if (query.testSessionId) {
+      params.push(query.testSessionId);
+      where.push(`ri.test_session_id = $${params.length}`);
+    }
+    if (query.intakeSessionId) {
+      params.push(query.intakeSessionId);
+      where.push(`ri.intake_session_id = $${params.length}`);
+    }
+    if (query.status) {
+      params.push(query.status);
+      where.push(`ri.status = $${params.length}`);
+    }
+    if (query.programmeOfferingId) {
+      params.push(query.programmeOfferingId);
+      where.push(`EXISTS (
+        SELECT 1 FROM test_session_offerings tso
+        WHERE tso.tenant_id = ri.tenant_id
+          AND tso.test_session_id = ri.test_session_id
+          AND tso.programme_offering_id = $${params.length}
+      )`);
+    }
+
+    const whereSql = where.join(' AND ');
+    params.push(limit, (page - 1) * limit);
+    const limitIdx = params.length - 1;
+    const offsetIdx = params.length;
+
+    const [items, countRows] = await Promise.all([
+      this.db.query(
+        `SELECT ri.id,
+                ri.status,
+                ri.file_name,
+                ri.test_session_id,
+                ri.intake_session_id,
+                ri.total_rows,
+                ri.valid_rows,
+                ri.invalid_rows,
+                ri.created_by,
+                ri.created_at,
+                ri.confirmed_by,
+                ri.confirmed_at,
+                ri.correction_reason
+         FROM result_imports ri
+         WHERE ${whereSql}
+         ORDER BY ri.created_at DESC
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        params,
+      ),
+      this.db.query(
+        `SELECT count(*)::int AS total
+         FROM result_imports ri
+         WHERE ${whereSql}`,
+        params.slice(0, -2),
+      ),
+    ]);
+
+    return {
+      items,
+      meta: this.pageMeta(page, limit, countRows[0]?.total ?? 0),
+    };
+  }
+
+  async listOffersByOffering(
+    ctx: RequestContext,
+    offeringId: string,
+    query: { page?: number; limit?: number; status?: string } = {},
+  ) {
+    this.admin(ctx);
+    await this.assertOffering(ctx, offeringId);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const params: unknown[] = [ctx.tenantId, offeringId];
+    const where = [
+      'o.tenant_id = $1',
+      'o.programme_offering_id = $2',
+    ];
+    if (query.status) {
+      params.push(query.status);
+      where.push(`o.status = $${params.length}`);
+    }
+    const whereSql = where.join(' AND ');
+    params.push(limit, (page - 1) * limit);
+    const limitIdx = params.length - 1;
+    const offsetIdx = params.length;
+
+    const [items, countRows] = await Promise.all([
+      this.db.query(
+        `SELECT o.id,
+                o.application_record_id,
+                a.application_reference,
+                a.applicant_name,
+                o.programme_offering_id,
+                o.offer_type,
+                o.status,
+                o.offer_issue_date,
+                o.acceptance_deadline,
+                o.authorized_by,
+                o.authorized_at,
+                o.published_at,
+                o.fee_challan_id,
+                o.expired_reason,
+                o.created_at,
+                o.updated_at
+         FROM admission_offers o
+         JOIN applications a
+           ON a.id = o.application_record_id
+          AND a.tenant_id = o.tenant_id
+         WHERE ${whereSql}
+         ORDER BY o.created_at DESC
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        params,
+      ),
+      this.db.query(
+        `SELECT count(*)::int AS total
+         FROM admission_offers o
+         WHERE ${whereSql}`,
+        params.slice(0, -2),
+      ),
+    ]);
+
+    return {
+      items,
+      meta: this.pageMeta(page, limit, countRows[0]?.total ?? 0),
+    };
+  }
+
+  async listMeritListsByOffering(
+    ctx: RequestContext,
+    offeringId: string,
+    query: {
+      page?: number;
+      limit?: number;
+      testSessionId?: string;
+      status?: string;
+      latestOnly?: boolean;
+    } = {},
+  ) {
+    this.admin(ctx);
+    await this.assertOffering(ctx, offeringId);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const params: unknown[] = [ctx.tenantId, offeringId];
+    const where = [
+      'ml.tenant_id = $1',
+      'ml.programme_offering_id = $2',
+    ];
+    if (query.testSessionId) {
+      params.push(query.testSessionId);
+      where.push(`ml.test_session_id = $${params.length}`);
+    }
+    if (query.status) {
+      params.push(query.status);
+      where.push(`ml.status = $${params.length}`);
+    }
+    const whereSql = where.join(' AND ');
+
+    if (query.latestOnly) {
+      const items = await this.db.query(
+        `SELECT ml.*,
+                (
+                  SELECT count(*)::int
+                  FROM programme_merit_list_items mi
+                  WHERE mi.tenant_id = ml.tenant_id
+                    AND mi.merit_list_id = ml.id
+                ) AS candidate_count
+         FROM programme_merit_lists ml
+         WHERE ${whereSql}
+         ORDER BY ml.list_version DESC, ml.generated_at DESC
+         LIMIT 1`,
+        params,
+      );
+      return {
+        items,
+        meta: this.pageMeta(1, 1, items.length),
+      };
+    }
+
+    params.push(limit, (page - 1) * limit);
+    const limitIdx = params.length - 1;
+    const offsetIdx = params.length;
+
+    const [items, countRows] = await Promise.all([
+      this.db.query(
+        `SELECT ml.*,
+                (
+                  SELECT count(*)::int
+                  FROM programme_merit_list_items mi
+                  WHERE mi.tenant_id = ml.tenant_id
+                    AND mi.merit_list_id = ml.id
+                ) AS candidate_count
+         FROM programme_merit_lists ml
+         WHERE ${whereSql}
+         ORDER BY ml.list_version DESC, ml.generated_at DESC
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        params,
+      ),
+      this.db.query(
+        `SELECT count(*)::int AS total
+         FROM programme_merit_lists ml
+         WHERE ${whereSql}`,
+        params.slice(0, -2),
+      ),
+    ]);
+
+    return {
+      items,
+      meta: this.pageMeta(page, limit, countRows[0]?.total ?? 0),
+    };
+  }
+
+  async listPublishedResultsByOffering(
+    ctx: RequestContext,
+    offeringId: string,
+    query: {
+      page?: number;
+      limit?: number;
+      testSessionId?: string;
+      resultStatus?: string;
+    } = {},
+  ) {
+    this.admin(ctx);
+    await this.assertOffering(ctx, offeringId);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const params: unknown[] = [ctx.tenantId, offeringId];
+    const where = [
+      'r.tenant_id = $1',
+      'r.is_current',
+      'r.published_at IS NOT NULL',
+      'apo.programme_offering_id = $2',
+      `EXISTS (
+         SELECT 1 FROM test_session_offerings tso
+         WHERE tso.tenant_id = r.tenant_id
+           AND tso.test_session_id = r.test_session_id
+           AND tso.programme_offering_id = $2
+       )`,
+    ];
+    if (query.testSessionId) {
+      params.push(query.testSessionId);
+      where.push(`r.test_session_id = $${params.length}`);
+    }
+    if (query.resultStatus) {
+      params.push(query.resultStatus);
+      where.push(`r.result_status = $${params.length}`);
+    }
+    const whereSql = where.join(' AND ');
+    params.push(limit, (page - 1) * limit);
+    const limitIdx = params.length - 1;
+    const offsetIdx = params.length;
+
+    const [items, countRows] = await Promise.all([
+      this.db.query(
+        `SELECT r.id,
+                r.application_record_id,
+                r.application_reference,
+                a.applicant_name,
+                r.test_session_id,
+                r.test_score,
+                r.total_marks,
+                r.percentage,
+                r.result_status,
+                r.published_at,
+                r.published_by,
+                r.import_id,
+                apo.preference_order
+         FROM application_entry_test_results r
+         JOIN applications a
+           ON a.id = r.application_record_id
+          AND a.tenant_id = r.tenant_id
+         JOIN application_programme_options apo
+           ON apo.applicant_id = a.id
+          AND apo.tenant_id = a.tenant_id
+          AND apo.programme_offering_id = $2
+         WHERE ${whereSql}
+         ORDER BY r.published_at DESC, r.application_reference ASC
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        params,
+      ),
+      this.db.query(
+        `SELECT count(*)::int AS total
+         FROM application_entry_test_results r
+         JOIN applications a
+           ON a.id = r.application_record_id
+          AND a.tenant_id = r.tenant_id
+         JOIN application_programme_options apo
+           ON apo.applicant_id = a.id
+          AND apo.tenant_id = a.tenant_id
+          AND apo.programme_offering_id = $2
+         WHERE ${whereSql}`,
+        params.slice(0, -2),
+      ),
+    ]);
+
+    return {
+      items,
+      meta: this.pageMeta(page, limit, countRows[0]?.total ?? 0),
+    };
+  }
   async importRows(ctx: RequestContext,id:string,page=1,limit=20) {
     this.admin(ctx);
     await this.getImport(ctx,id);
@@ -878,7 +1213,149 @@ export class SelectionOffersService {
     });
   }
 
-  async confirmAllocation(ctx:RequestContext,id:string,version:number,key:string) { this.admin(ctx); if(!key?.trim()||key.length>100) throw new BadRequestException('Idempotency-Key header is required (maximum 100 characters)'); return this.db.transaction(async m=>{const a=(await m.query(`SELECT * FROM application_selection_allocations WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,[ctx.tenantId,id]))[0]; if(!a)throw new NotFoundException('Allocation not found'); if(a.status==='CONFIRMED')return a; if(a.status!=='PREVIEW'||Number(a.allocation_version)!==version)throw new ConflictException('Allocation preview is stale or not confirmable'); const prev=await m.query(`SELECT id FROM application_selection_allocations WHERE tenant_id=$1 AND intake_session_id=$2 AND test_session_id=$3 AND status='CONFIRMED' FOR UPDATE`,[ctx.tenantId,a.intake_session_id,a.test_session_id]); if(prev[0])await m.query(`UPDATE application_selection_allocations SET status='SUPERSEDED' WHERE id=$1`,[prev[0].id]); const items=await m.query(`SELECT * FROM application_selection_allocation_items WHERE tenant_id=$1 AND allocation_id=$2 ORDER BY application_record_id FOR UPDATE`,[ctx.tenantId,id]); for(const item of items){ await m.query(`UPDATE applications SET selection_status=$3,selected_programme_offering_id=$4,selection_at=now(),selection_by=$5,selection_reason=$6 WHERE tenant_id=$1 AND id=$2`,[ctx.tenantId,item.application_record_id,item.selection_status,item.selected_programme_offering_id,ctx.userId,item.reason]); } await m.query(`UPDATE programme_merit_list_items mi SET selection_status=ai.selection_status,final_selection=(ai.selection_status='SELECTED') FROM application_selection_allocation_items ai WHERE ai.tenant_id=$1 AND ai.allocation_id=$2 AND ai.merit_list_item_id=mi.id`,[ctx.tenantId,id]); return (await m.query(`UPDATE application_selection_allocations SET status='CONFIRMED',idempotency_key=$3,confirmed_at=now(),supersedes_allocation_id=$4 WHERE tenant_id=$1 AND id=$2 RETURNING *`,[ctx.tenantId,id,key,prev[0]?.id??null]))[0]; }); }
+  async confirmAllocation(
+    ctx: RequestContext,
+    allocations: Array<{ allocationId: string; allocationVersion: number }>,
+    key: string,
+  ) {
+    this.admin(ctx);
+    if (!key?.trim() || key.length > 100) {
+      throw new BadRequestException(
+        'Idempotency-Key header is required (maximum 100 characters)',
+      );
+    }
+    if (!allocations?.length) {
+      throw new BadRequestException('At least one allocation is required');
+    }
+
+    const seen = new Set<string>();
+    for (const item of allocations) {
+      if (seen.has(item.allocationId)) {
+        throw new BadRequestException(
+          `Duplicate allocationId in payload: ${item.allocationId}`,
+        );
+      }
+      seen.add(item.allocationId);
+    }
+
+    // Stable lock order to avoid deadlocks when confirming several previews.
+    const ordered = [...allocations].sort((a, b) =>
+      a.allocationId.localeCompare(b.allocationId),
+    );
+
+    return this.db.transaction(async (m) => {
+      const confirmed = [];
+      for (const item of ordered) {
+        const idempotencyKey =
+          ordered.length === 1
+            ? key.trim()
+            : `${key.trim()}:${item.allocationId}`.slice(0, 100);
+
+        const a = (
+          await m.query(
+            `SELECT * FROM application_selection_allocations
+             WHERE tenant_id = $1 AND id = $2
+             FOR UPDATE`,
+            [ctx.tenantId, item.allocationId],
+          )
+        )[0];
+        if (!a) {
+          throw new NotFoundException(
+            `Allocation not found: ${item.allocationId}`,
+          );
+        }
+        if (a.status === 'CONFIRMED') {
+          confirmed.push(a);
+          continue;
+        }
+        if (
+          a.status !== 'PREVIEW' ||
+          Number(a.allocation_version) !== item.allocationVersion
+        ) {
+          throw new ConflictException(
+            `Allocation preview is stale or not confirmable: ${item.allocationId}`,
+          );
+        }
+
+        const prev = await m.query(
+          `SELECT id FROM application_selection_allocations
+           WHERE tenant_id = $1
+             AND intake_session_id = $2
+             AND test_session_id = $3
+             AND status = 'CONFIRMED'
+           FOR UPDATE`,
+          [ctx.tenantId, a.intake_session_id, a.test_session_id],
+        );
+        if (prev[0]) {
+          await m.query(
+            `UPDATE application_selection_allocations
+             SET status = 'SUPERSEDED'
+             WHERE id = $1`,
+            [prev[0].id],
+          );
+        }
+
+        const items = await m.query(
+          `SELECT * FROM application_selection_allocation_items
+           WHERE tenant_id = $1 AND allocation_id = $2
+           ORDER BY application_record_id
+           FOR UPDATE`,
+          [ctx.tenantId, item.allocationId],
+        );
+        for (const row of items) {
+          await m.query(
+            `UPDATE applications
+             SET selection_status = $3,
+                 selected_programme_offering_id = $4,
+                 selection_at = now(),
+                 selection_by = $5,
+                 selection_reason = $6
+             WHERE tenant_id = $1 AND id = $2`,
+            [
+              ctx.tenantId,
+              row.application_record_id,
+              row.selection_status,
+              row.selected_programme_offering_id,
+              ctx.userId,
+              row.reason,
+            ],
+          );
+        }
+
+        await m.query(
+          `UPDATE programme_merit_list_items mi
+           SET selection_status = ai.selection_status,
+               final_selection = (ai.selection_status = 'SELECTED')
+           FROM application_selection_allocation_items ai
+           WHERE ai.tenant_id = $1
+             AND ai.allocation_id = $2
+             AND ai.merit_list_item_id = mi.id`,
+          [ctx.tenantId, item.allocationId],
+        );
+
+        const updated = (
+          await m.query(
+            `UPDATE application_selection_allocations
+             SET status = 'CONFIRMED',
+                 idempotency_key = $3,
+                 confirmed_at = now(),
+                 supersedes_allocation_id = $4
+             WHERE tenant_id = $1 AND id = $2
+             RETURNING *`,
+            [
+              ctx.tenantId,
+              item.allocationId,
+              idempotencyKey,
+              prev[0]?.id ?? null,
+            ],
+          )
+        )[0];
+        confirmed.push(updated);
+      }
+
+      return { items: confirmed, confirmedCount: confirmed.length };
+    });
+  }
 
   async allocation(ctx:RequestContext,id:string) { this.admin(ctx); const r=await this.db.query(`SELECT * FROM application_selection_allocations WHERE tenant_id=$1 AND id=$2`,[ctx.tenantId,id]); if(!r[0])throw new NotFoundException('Allocation not found'); return r[0]; }
   async allocationItems(ctx:RequestContext,id:string,page=1,limit=20) {

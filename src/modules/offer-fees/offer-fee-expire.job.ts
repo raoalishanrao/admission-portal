@@ -2,6 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { OfferFeesService } from './offer-fees.service.js';
 
+function isTransientDbError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /no authentication method is found|ECONNRESET|Connection terminated|timeout|SSL|Connection refused|sorry, too many clients/i.test(
+    message,
+  );
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Periodically expires unpaid published offers past deadline (+ grace)
  * and promotes waitlisted applicants into freed seats.
@@ -21,9 +32,7 @@ export class OfferFeeExpireJob {
     }
     this.running = true;
     try {
-      const summary = await this.offerFees.expireUnpaidForScheduler({
-        promoteWaitlist: true,
-      });
+      const summary = await this.runWithRetry();
       const expired = summary.reduce((s, r) => s + (r.expiredCount ?? 0), 0);
       const promoted = summary.reduce((s, r) => s + (r.promotedCount ?? 0), 0);
       if (expired || promoted) {
@@ -38,5 +47,29 @@ export class OfferFeeExpireJob {
     } finally {
       this.running = false;
     }
+  }
+
+  private async runWithRetry(maxAttempts = 3) {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await this.offerFees.expireUnpaidForScheduler({
+          promoteWaitlist: true,
+        });
+      } catch (err) {
+        lastError = err;
+        if (!isTransientDbError(err) || attempt === maxAttempts) {
+          throw err;
+        }
+        const delayMs = attempt * 1500;
+        this.logger.warn(
+          `Offer fee expire job DB blip (attempt ${attempt}/${maxAttempts}): ${
+            err instanceof Error ? err.message : String(err)
+          }; retrying in ${delayMs}ms`,
+        );
+        await sleep(delayMs);
+      }
+    }
+    throw lastError;
   }
 }
